@@ -5,33 +5,24 @@ import ApiService from "../services/api";
 
 export default function LoginModal({ isOpen, onClose, onLogin }) {
   const [isRegistering, setIsRegistering] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    username: "",
-    password: "",
-    confirmPassword: "",
-    usn: "",
-    branch: "",
-    section: "",
-    email: "",
-    phone: "",
+    username: '',
+    password: '',
+    confirmPassword: '',
+    usn: '',
+    branch: '',
+    section: '',
+    email: '',
+    phone: ''
   });
 
-  const [error, setError] = useState({ message: "", field: "" });
+  const [error, setError] = useState({ message: '', field: '' });
 
-  const branches = [
-    "Biotechnology",
-    "Civil Engineering",
-    "Construction Technology and Management",
-    "Computer Science and Engineering",
-    "Computer Science and Engineering(AI & ML)",
-    "Computer Science and Business System",
-    "Electronics and Communication Engineering",
-    "Information Science and Engineering",
-    "Mechanical Engineering",
-    "Bachelor of Computer Applications",
-    "Bachelor of Business Administration",
-    "other",
+  const branches = ['Biotechnology','Civil Engineering','Construction Technology and Management',
+    'Computer Science and Engineering','Computer Science and Engineering(AI & ML)',
+    'Computer Science and Business System','Electronics and Communication Engineering',
+    'Information Science and Engineering','Mechanical Engineering','Bachelor of Computer Applications',
+    'Bachelor of Business Administration','other'
   ];
 
   // Password Validation
@@ -51,132 +42,85 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
   // Handle Form Submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (loading) return;
-    setLoading(true);
-    setError({ message: "", field: "" });
+    
+    if (isRegistering) {
+      // Registration logic with validation
+      setError({ message: '', field: '' });
 
-    try {
-      if (isRegistering) {
-        // --- Validation ---
-        for (const key in formData) {
-          if (
-            Object.prototype.hasOwnProperty.call(formData, key) &&
-            String(formData[key]).trim() === ""
-          ) {
-            setError({
-              message: "Please fill in all required fields.",
-              field: key,
-            });
-            setLoading(false);
-            return;
-          }
-        }
-
-        if (!formData.usn.toUpperCase().includes("JST")) {
-          setError({
-            message: 'Invalid USN. It must contain "JST".',
-            field: "usn",
-          });
-          setLoading(false);
+      // Validation
+      for (const key in formData) {
+        if (Object.prototype.hasOwnProperty.call(formData, key) && String(formData[key]).trim() === '') {
+          setError({ message: 'Please fill in all required fields.', field: key });
           return;
         }
-
-        if (!formData.email.toLowerCase().endsWith("@gmail.com")) {
-          setError({
-            message: "Please provide a valid @gmail.com email address.",
-            field: "email",
-          });
-          setLoading(false);
-          return;
-        }
-
-        const passwordError = validatePassword(formData.password);
-        if (passwordError) {
-          setError({ message: passwordError, field: "password" });
-          setLoading(false);
-          return;
-        }
-
-        if (formData.password !== formData.confirmPassword) {
-          setError({
-            message: "Passwords do not match.",
-            field: "confirmPassword",
-          });
-          setLoading(false);
-          return;
-        }
-
-        const phoneRegex = /^(91)?[0-9]{10}$/;
-        if (!phoneRegex.test(formData.phone)) {
-          setError({
-            message: "Please enter a valid 10 or 12-digit phone number.",
-            field: "phone",
-          });
-          setLoading(false);
-          return;
-        }
-
-        // --- API Call: Register ---
-        const { confirmPassword, ...submissionData } = formData;
-        await ApiService.register(submissionData);
-
-        // Success message + switch to login
-        setError({
-          message: "✅ Registration successful! Please login now.",
-          field: "",
-        });
-
-        setIsRegistering(false);
-
-        // Reset form
-        setFormData({
-          username: "",
-          password: "",
-          confirmPassword: "",
-          usn: "",
-          branch: "",
-          section: "",
-          email: "",
-          phone: "",
-        });
-
-        // Clear success message automatically
-        setTimeout(() => setError({ message: "", field: "" }), 3000);
-      } else {
-        // --- API Call: Login ---
-        const response = await ApiService.login({
-          email: formData.email,
-          password: formData.password,
-        });
-
-        // Store token + user in local storage
-        localStorage.setItem("token", response.token);
-        localStorage.setItem("user", JSON.stringify(response.user));
-
-        // Notify parent
-        onLogin(response.user);
-        onClose();
       }
-    } catch (err) {
-      if (err.response?.data?.errors) {
-        setError({
-          message: err.response.data.errors[0].msg,
-          field: err.response.data.errors[0].param,
-        });
-      } else if (err.response?.data?.message) {
-        setError({ message: err.response.data.message, field: "" });
-      } else {
-        setError({ message: err.message || "Something went wrong.", field: "" });
+      if (!formData.usn.toUpperCase().includes('JST')) {
+        setError({ message: 'Invalid USN. It must contain "JST".', field: 'usn' });
+        return;
       }
-    } finally {
-      setLoading(false);
+      if (!formData.email.toLowerCase().endsWith('@gmail.com')) {
+        setError({ message: 'Please provide a valid @gmail.com email address.', field: 'email' });
+        return;
+      }
+      const passwordError = validatePassword(formData.password);
+      if (passwordError) {
+        setError({ message: passwordError, field: 'password' });
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        setError({ message: 'Passwords do not match.', field: 'confirmPassword' });
+        return;
+      }
+      const phoneRegex = /^(91)?[0-9]{10}$/;
+      if (!phoneRegex.test(formData.phone)) {
+        setError({ message: 'Please enter a valid 10 or 12-digit phone number.', field: 'phone' });
+        return;
+      }
+      
+      // API call
+      const { confirmPassword, ...submissionData } = formData;
+
+      try {
+        const response = await fetch('/api/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(submissionData),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          setError({ message: result.message || 'An error occurred.', field: '' });
+        } else {
+          alert('Registration Successful! A confirmation email has been sent.');
+          onClose();
+        }
+      } catch (networkError) {
+        setError({ message: 'Could not connect to the server. Please try again later.', field: '' });
+      }
+    } else {
+      // Login logic (simplified)
+      onLogin({
+        username: 'John Doe',
+        email: formData.email,
+        phone: '+1 (555) 987-6543',
+        usn: '01JST21CS001',
+        branch: 'Computer Science and Engineering',
+        section: 'A'
+      });
+      onClose();
     }
   };
 
   // Handle Input Changes
   const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    if (error.message) setError({ message: "", field: "" });
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+    if (error.message) setError({ message: '', field: '' });
   };
 
   if (!isOpen) return null;
@@ -188,10 +132,13 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold custom-brown">
-              {isRegistering ? "Register" : "Login"}
+              {isRegistering ? 'Register' : 'Login'}
             </h2>
             <button
-              onClick={onClose}
+              onClick={() => {
+                resetStates();
+                onClose();
+              }}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <X className="h-5 w-5 custom-brown" />
@@ -199,7 +146,78 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={
+            isForgotPassword ? handleForgotPassword :
+              isOTPVerification ? handleOTPVerification :
+                handleSubmit
+          } className="space-y-4">
+            {/* Forgot Password Form */}
+            {isForgotPassword && (
+              <div className="space-y-4">
+                <div className="text-center mb-4">
+                  <p className="text-gray-600">
+                    Enter your email address and we'll send you an OTP to reset your password.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium custom-brown mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    required
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent ${error.field === 'email' ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="Enter your email address"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* OTP Verification Form */}
+            {isOTPVerification && (
+              <div className="space-y-4">
+                <div className="text-center mb-4">
+                  <p className="text-gray-600">
+                    We've sent a 6-digit OTP to <strong>{formData.email}</strong>
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Please check your email and enter the OTP below.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium custom-brown mb-2">
+                    Enter OTP
+                  </label>
+                  <input
+                    type="text"
+                    name="otp"
+                    required
+                    value={formData.otp}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-center text-lg tracking-widest ${error.field === 'otp' ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="000000"
+                    maxLength="6"
+                    pattern="[0-9]{6}"
+                  />
+                </div>
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOTPVerification(false);
+                      setIsForgotPassword(true);
+                    }}
+                    className="text-sm text-accent hover:underline"
+                  >
+                    Didn't receive OTP? Resend
+                  </button>
+                </div>
+              </div>
+            )}
+
             {isRegistering && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -243,7 +261,6 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
               </div>
             )}
 
-            {/* Email */}
             <div>
               <label className="block text-sm font-medium custom-brown mb-2">
                 Email
@@ -251,23 +268,15 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
               <input
                 type="email"
                 name="email"
+                required
                 value={formData.email}
                 onChange={handleInputChange}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  error.field === "email"
-                    ? "border-red-500"
-                    : "border-gray-300"
-                }`}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent ${error.field === 'email' ? 'border-red-500' : 'border-gray-300'}`}
+                placeholder={isRegistering ? "your.name@gmail.com" : "Enter your email"}
               />
-              {error.field === "email" && (
-                <p className="text-red-500 text-sm mt-1">{error.message}</p>
-              )}
             </div>
 
-            {/* Password + Confirm Password */}
-            <div
-              className={isRegistering ? "grid grid-cols-1 md:grid-cols-2 gap-4" : ""}
-            >
+            <div className={isRegistering ? "grid grid-cols-1 md:grid-cols-2 gap-4" : ""}>
               <div>
                 <label className="block text-sm font-medium custom-brown mb-2">
                   Password
@@ -275,17 +284,13 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
                 <input
                   type="password"
                   name="password"
+                  required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-lg ${
-                    error.field === "password"
-                      ? "border-red-500"
-                      : "border-gray-300"
-                  }`}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent ${error.field === 'password' ? 'border-red-500' : 'border-gray-300'}`}
+                  placeholder={isRegistering ? "Create a strong password" : "Enter your password"}
+                  title={isRegistering ? "Must contain at least 8 characters, including an uppercase, lowercase, number, and special character." : ""}
                 />
-                {error.field === "password" && (
-                  <p className="text-red-500 text-sm mt-1">{error.message}</p>
-                )}
               </div>
               {isRegistering && (
                 <div>
@@ -295,19 +300,12 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
                   <input
                     type="password"
                     name="confirmPassword"
+                    required
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      error.field === "confirmPassword"
-                        ? "border-red-500"
-                        : "border-gray-300"
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent ${error.field === 'confirmPassword' ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="Confirm your password"
                   />
-                  {error.field === "confirmPassword" && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {error.message}
-                    </p>
-                  )}
                 </div>
               )}
             </div>
@@ -396,25 +394,18 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
               disabled={loading}
               className="w-full custom-accent text-brown font-semibold py-3 rounded-lg hover:bg-yellow-500 transition-colors"
             >
-              {loading
-                ? isRegistering
-                  ? "Registering..."
-                  : "Logging in..."
-                : isRegistering
-                ? "Register"
-                : "Login"}
+              {isRegistering ? 'Register' : 'Login'}
             </button>
-
-            {/* Success/Error Message */}
-            {error.message && !error.field && (
-              <div
-                className={`mt-4 p-3 rounded-lg ${
-                  error.message.includes("✅")
-                    ? "bg-green-100 border border-green-400 text-green-700"
-                    : "bg-red-100 border border-red-400 text-red-700"
-                }`}
-              >
+            
+            {error.message && (
+              <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
                 {error.message}
+              </div>
+            )}
+
+            {success.message && (
+              <div className="mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+                {success.message}
               </div>
             )}
           </form>
@@ -422,14 +413,12 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
           {/* Toggle */}
           <div className="mt-6 text-center">
             <p className="custom-brown opacity-70">
-              {isRegistering
-                ? "Already have an account?"
-                : "Don't have an account?"}
+              {isRegistering ? 'Already have an account?' : "Don't have an account?"}
               <button
                 onClick={() => setIsRegistering(!isRegistering)}
                 className="ml-2 text-accent font-semibold hover:underline"
               >
-                {isRegistering ? "Login" : "Register"}
+                {isRegistering ? 'Login' : 'Register'}
               </button>
             </p>
           </div>

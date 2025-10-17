@@ -1,16 +1,9 @@
-// AttendanceTracker.jsx
-import React, { useEffect, useState } from "react";
-import "./AttendanceTracker.css";
-
 /**
- * AttendanceTracker
- * - Backend-driven version (uses import.meta.env.VITE_API_URL || fallback)
- * - Endpoints used (assumed):
- *   GET  {API_URL}/attendance/:userId                -> list of sessions
- *   POST {API_URL}/attendance/mark                    -> mark/add session { userId, subject, date, attendance, status }
- *   DELETE {API_URL}/attendance/:userId/:subject/:date/:status -> delete single session
- *   DELETE {API_URL}/attendance/:userId/:subject      -> remove all sessions for a subject (optional)
+ * Attendify - Attendance Tracking Component
  */
+
+import React, { useState, useEffect } from 'react';
+import './AttendanceTracker.css';
 
 const AttendanceTracker = ({ onBack }) => {
   // Config

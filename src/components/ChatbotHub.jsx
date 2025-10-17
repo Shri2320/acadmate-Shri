@@ -13,15 +13,21 @@ const ChatbotHub = () => {
   });
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedMarks, setSelectedMarks] = useState(5); // Default to 5 marks
+  const [showMarksDropdown, setShowMarksDropdown] = useState(false);
   const chatboxRef = useRef(null);
 
   const sendMessage = () => {
     if (!input.trim()) return;
 
-    // Add user message
+    // Add user message with marks info for examprep
+    const userMessage = activeMode === "examprep"
+      ? `${input} (${selectedMarks} marks)`
+      : input;
+
     setMessages(prev => ({
       ...prev,
-      [activeMode]: [...prev[activeMode], { type: "user", text: input }]
+      [activeMode]: [...prev[activeMode], { type: "user", text: userMessage }]
     }));
     setInput("");
     setIsTyping(true);
@@ -62,6 +68,20 @@ const ChatbotHub = () => {
       chatboxRef.current.scrollTop = chatboxRef.current.scrollHeight;
     }
   }, [messages, isTyping, activeMode]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showMarksDropdown && !event.target.closest('.marks-selection-container')) {
+        setShowMarksDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMarksDropdown]);
 
   // Scroll reveal animation for EduBoat cards
   useEffect(() => {
@@ -156,21 +176,21 @@ const ChatbotHub = () => {
   // If we're in a specific chatbot mode, show the chat interface
   return (
     <div className="chatbot-hub">
-              {/* Header */}
-              <header className="chatbot-header">
-                <button 
-                  onClick={() => setActiveMode("eduboat")}
-                  className="back-button-header"
-                  title="Back to AcadBoat"
-                >
-                </button>
-                <h1>{modeConfig.name}</h1>
-                <p className="chatbot-subtitle">
-                  {activeMode === "quickhelp" && "Get instant explanations for quick understanding"}
-                  {activeMode === "examprep" && "Structured answers and strategies for exam success"}
-                  {activeMode === "deepdive" && "Comprehensive explanations with detailed insights"}
-                </p>
-              </header>
+      {/* Header */}
+      <header className="chatbot-header">
+        <button
+          onClick={() => setActiveMode("eduboat")}
+          className="back-button-header"
+          title="Back to AcadBoat"
+        >
+        </button>
+        <h1>{modeConfig.name}</h1>
+        <p className="chatbot-subtitle">
+          {activeMode === "quickhelp" && "Get instant explanations for quick understanding"}
+          {activeMode === "examprep" && "Structured answers and strategies for exam success"}
+          {activeMode === "deepdive" && "Comprehensive explanations with detailed insights"}
+        </p>
+      </header>
 
       {/* Chat Area */}
       <div className="chatbox">
@@ -206,6 +226,37 @@ const ChatbotHub = () => {
             placeholder="Type your question..."
             className="message-input"
           />
+
+          {/* Marks Selection - Only show for examprep */}
+          {activeMode === "examprep" && (
+            <div className="marks-selection-container">
+              <button
+                onClick={() => setShowMarksDropdown(!showMarksDropdown)}
+                className="marks-button"
+                title="Select marks"
+              >
+                {selectedMarks} marks
+              </button>
+
+              {showMarksDropdown && (
+                <div className="marks-dropdown">
+                  {[2, 3, 4, 5, 6, 7, 8, 10].map(marks => (
+                    <button
+                      key={marks}
+                      onClick={() => {
+                        setSelectedMarks(marks);
+                        setShowMarksDropdown(false);
+                      }}
+                      className={`marks-option ${selectedMarks === marks ? 'selected' : ''}`}
+                    >
+                      {marks} marks
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             onClick={sendMessage}
             className="send-button"
