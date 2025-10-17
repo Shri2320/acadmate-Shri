@@ -2,6 +2,7 @@ import React from 'react';
 import { data } from './data';
 import './PdfListPage.css';
 
+//this is a pdfListpage
 const PdfListPage = ({ user, onLogout, cycle, type, subjectId, onNavigate, onBack }) => {
 
   const currentCycleData = data[cycle];
