@@ -20,9 +20,12 @@ const ChatbotHub = () => {
   const chatboxRef = useRef(null);
   const eduboatRef = useRef(null);
   const prevMessagesLengthRef = useRef(0);
+  const isSendingRef = useRef(false);
 
   const sendMessage = () => {
     if (!input.trim()) return;
+    if (isSendingRef.current) return; // Prevent double-send from Strict Mode
+    isSendingRef.current = true;
 
     const messageToSend = input;
     const userMessage = activeMode === "examprep"
@@ -72,7 +75,10 @@ const ChatbotHub = () => {
           ],
         }));
       })
-      .finally(() => setIsTyping(false));
+      .finally(() => {
+        setIsTyping(false);
+        isSendingRef.current = false;
+      });
   };
 
   const navigateToMode = (mode) => {
