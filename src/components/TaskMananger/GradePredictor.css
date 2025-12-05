@@ -290,6 +290,23 @@ html {
   text-shadow: 0 2px 4px rgba(78, 205, 196, 0.3);
 }
 
+/* Image used for grade icon */
+.grade-icon {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.12);
+  border: 2px solid rgba(78,205,196,0.12);
+}
+
+@media (max-width: 640px) {
+  .grade-predictor-container .grade-icon {
+    width: 28px;
+    height: 28px;
+  }
+}
+
 .tab-icon.attendance-icon {
   color: #a8edea;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));

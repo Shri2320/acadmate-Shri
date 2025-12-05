@@ -6,474 +6,391 @@ import React, { useState, useEffect } from 'react';
 import './AttendanceTracker.css';
 
 const AttendanceTracker = ({ onBack }) => {
-  // Config
-  const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/$/, "");
-  const API_ATTENDANCE = `${API_BASE}/attendance`;
-
-  // State
-  const [userId, setUserId] = useState(null);
-  const [timetable, setTimetable] = useState([]); // [{ day: 'General', subject: 'Math' }, ...]
-  const [sessions, setSessions] = useState([]); // records from backend
-  const [targetAttendance, setTargetAttendance] = useState(75);
-  const [manualSubject, setManualSubject] = useState("");
-  const [showTimetable, setShowTimetable] = useState(true);
-  const [showExtraOptions, setShowExtraOptions] = useState({});
+  const [subjects, setSubjects] = useState([]);
+  const [targetPercentage, setTargetPercentage] = useState(75);
+  const [newSubjectName, setNewSubjectName] = useState('');
+  const [undoStack, setUndoStack] = useState([]);
   const [selectedDates, setSelectedDates] = useState({});
-  const [actionHistory, setActionHistory] = useState([]); // client-side undo stack
-  const [loading, setLoading] = useState(false);
-  const [globalMessage, setGlobalMessage] = useState(null); // { type: 'success'|'error', text }
-  const [extraShowMore, setExtraShowMore] = useState({});
-  const [scheduledShowMore, setScheduledShowMore] = useState({});
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedSubjectForCalendar, setSelectedSubjectForCalendar] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [selectedSubjectForCalendar, setSelectedSubjectForCalendar] = useState("");
 
-  // Helper: get local YYYY-MM-DD string (avoids timezone-shift issues)
-  const getLocalDateString = (date = new Date()) => {
-    const d = new Date(date);
-    const tzOffset = d.getTimezoneOffset() * 60000; // in ms
-    const local = new Date(d.getTime() - tzOffset);
-    return local.toISOString().split("T")[0];
-  };
-
-  // Show a transient global message
-  const showMessage = (text, type = "success", duration = 3000) => {
-    setGlobalMessage({ text, type });
-    setTimeout(() => setGlobalMessage(null), duration);
-  };
-
-  // Load login user id from localStorage
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("user");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed?.id) setUserId(parsed.id);
-        else setUserId(null);
-      } else {
-        setUserId(null);
-      }
-    } catch (err) {
-      console.error("Failed to parse stored user:", err);
-      setUserId(null);
+    const savedData = localStorage.getItem('attendanceTrackerData');
+    if (savedData) {
+      const parsed = JSON.parse(savedData);
+      setSubjects(parsed.subjects || []);
+      setTargetPercentage(parsed.targetPercentage || 75);
     }
   }, []);
 
-  // Load UI prefs from localStorage
+  // By default, do not auto-select subject; calendar remains empty until user selects
+
   useEffect(() => {
-    const sTarget = localStorage.getItem("targetAttendance");
-    if (sTarget) setTargetAttendance(parseInt(sTarget, 10) || 75);
+    const dataToSave = { subjects, targetPercentage };
+    localStorage.setItem('attendanceTrackerData', JSON.stringify(dataToSave));
+  }, [subjects, targetPercentage]);
 
-    const sDates = localStorage.getItem("selectedDates");
-    if (sDates) {
-      try { setSelectedDates(JSON.parse(sDates)); } catch { /* ignore */ }
+  const saveToUndoStack = () => {
+    setUndoStack(prev => [...prev, { subjects: JSON.parse(JSON.stringify(subjects)), targetPercentage }]);
+  };
+
+  const handleUndo = () => {
+    if (undoStack.length > 0) {
+      const lastState = undoStack[undoStack.length - 1];
+      setSubjects(lastState.subjects);
+      setTargetPercentage(lastState.targetPercentage);
+      setUndoStack(prev => prev.slice(0, -1));
     }
+  };
 
-    const sTimetable = localStorage.getItem("timetable");
-    if (sTimetable) {
-      try { setTimetable(JSON.parse(sTimetable)); } catch { /* ignore */ }
-    }
-
-    const sHistory = localStorage.getItem("actionHistory");
-    if (sHistory) {
-      try { setActionHistory(JSON.parse(sHistory)); } catch { /* ignore */ }
-    }
-  }, []);
-
-  // Persist certain UI prefs
-  useEffect(() => localStorage.setItem("targetAttendance", String(targetAttendance)), [targetAttendance]);
-  useEffect(() => localStorage.setItem("selectedDates", JSON.stringify(selectedDates)), [selectedDates]);
-  useEffect(() => localStorage.setItem("timetable", JSON.stringify(timetable)), [timetable]);
-  useEffect(() => localStorage.setItem("actionHistory", JSON.stringify(actionHistory)), [actionHistory]);
-
-  // Fetch attendance records for user
-  const fetchAttendance = async () => {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_ATTENDANCE}/${userId}`);
-      if (!res.ok) throw new Error(`Failed to fetch (${res.status})`);
-      const records = await res.json();
-      // Expect records to be an array of { id, userId, subject, date: 'YYYY-MM-DD', attendance: 'present'|'absent', status: 'scheduled'|'extra' }
-      setSessions(Array.isArray(records) ? records : []);
-      // Build timetable from subjects if timetable empty (use backend as source of truth)
-      const subjects = [...new Set((Array.isArray(records) ? records : []).map((r) => r.subject))];
-      if (subjects.length && timetable.length === 0) {
-        setTimetable(subjects.map((s) => ({ day: "General", subject: s })));
+  const handleAddSubject = () => {
+    if (newSubjectName.trim()) {
+      const normalized = newSubjectName.trim().toLowerCase();
+      const exists = subjects.some(s => (s.name || '').trim().toLowerCase() === normalized);
+      if (exists) {
+        alert('This subject has already been added.');
+        return;
       }
-      // Latest dates per subject
-      const latest = {};
-      (records || []).forEach((r) => {
-        if (!latest[r.subject] || new Date(r.date) > new Date(latest[r.subject])) {
-          latest[r.subject] = r.date;
+      saveToUndoStack();
+      const newSubject = {
+        id: Date.now().toString(),
+        name: newSubjectName.trim(),
+        sessions: [],
+        showAttendanceForm: false,
+        showSessions: false
+      };
+      setSubjects([...subjects, newSubject]);
+      setNewSubjectName('');
+    }
+  };
+
+  const handleRemoveSubject = (subjectId) => {
+    saveToUndoStack();
+    setSubjects(subjects.filter(s => s.id !== subjectId));
+  };
+
+  const handleMarkAttendance = (subjectId, status, isExtra = false) => {
+    saveToUndoStack();
+    const date = selectedDates[subjectId] || new Date().toISOString().split('T')[0];
+
+    setSubjects(subjects.map(subject => {
+      if (subject.id === subjectId) {
+        if (isExtra) {
+          const newSession = {
+            id: Date.now().toString() + Math.random(),
+            date,
+            status,
+            isExtra: true
+          };
+          return {
+            ...subject,
+            sessions: [...subject.sessions, newSession].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          };
+        } else {
+          const existingRegularIndex = subject.sessions.findIndex(s => s.date === date && !s.isExtra);
+          if (existingRegularIndex >= 0) {
+            const updatedSessions = [...subject.sessions];
+            updatedSessions[existingRegularIndex] = { ...updatedSessions[existingRegularIndex], status };
+            return { ...subject, sessions: updatedSessions };
+          } else {
+            const newSession = {
+              id: Date.now().toString() + Math.random(),
+              date,
+              status,
+              isExtra: false
+            };
+            return {
+              ...subject,
+              sessions: [...subject.sessions, newSession].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            };
+          }
         }
-      });
-      setSelectedDates((prev) => ({ ...latest, ...prev }));
-    } catch (err) {
-      console.error("fetchAttendance error:", err);
-      showMessage("Unable to fetch attendance. Check your network or API URL.", "error", 4000);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // fetch when userId available
-  useEffect(() => {
-    fetchAttendance();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
-
-  // Add manual subject (client side, persisted locally and used for UI)
-  const addManualEntry = async () => {
-    if (!manualSubject.trim()) return showMessage("Please enter a subject name.", "error");
-    const normalized = manualSubject.trim();
-    if (timetable.some((t) => t.subject.toLowerCase() === normalized.toLowerCase())) {
-      return showMessage("Subject already exists", "error");
-    }
-    const newEntry = { day: "General", subject: normalized };
-    setTimetable((prev) => [...prev, newEntry]);
-    setSelectedDates((prev) => ({ ...prev, [normalized]: getLocalDateString() }));
-    setManualSubject("");
-    setShowTimetable(true);
-    showMessage("Subject added locally. You can mark attendance now.", "success");
-  };
-
-  const handleKeyPress = (e) => { if (e.key === "Enter") addManualEntry(); };
-
-  // Remove subject (client-side removal + optional backend delete of sessions)
-  const removeTimetableEntry = async (day, subject) => {
-    if (!window.confirm(`Remove ${subject} and its attendance records?`)) return;
-    setTimetable((prev) => prev.filter((t) => !(t.day === day && t.subject === subject)));
-
-    if (!userId) {
-      // If no user, just remove local sessions
-      setSessions((prev) => prev.filter((s) => s.subject !== subject));
-      showMessage("Subject removed locally", "success");
-      return;
-    }
-
-    // Attempt backend removal of sessions for that subject (optional endpoint)
-    try {
-      setLoading(true);
-      const res = await fetch(`${API_ATTENDANCE}/${userId}/${encodeURIComponent(subject)}`, { method: "DELETE" });
-      if (!res.ok) {
-        // Not fatal — still remove locally
-        console.warn("Backend delete subject responded", res.status);
       }
-      // Update local sessions anyway
-      setSessions((prev) => prev.filter((s) => s.subject !== subject));
-      showMessage("Subject and sessions removed", "success");
-    } catch (err) {
-      console.error("removeTimetableEntry error:", err);
-      showMessage("Failed to remove subject from server. Removed locally.", "error");
-    } finally {
-      setLoading(false);
-    }
+      return subject;
+    }));
   };
 
-  // Add to small undo history (client-side)
-  const pushHistory = (action, payload) => {
-    const entry = { id: Date.now(), action, payload, ts: new Date().toISOString() };
-    setActionHistory((prev) => [entry, ...prev].slice(0, 12));
+  const handleDeleteSession = (subjectId, sessionId) => {
+    saveToUndoStack();
+    setSubjects(subjects.map(subject => {
+      if (subject.id === subjectId) {
+        return { ...subject, sessions: subject.sessions.filter(s => s.id !== sessionId) };
+      }
+      return subject;
+    }));
   };
 
-  // Undo last client action (only undoes local session change or recent add)
-  const undoLastAction = () => {
-    if (!actionHistory.length) return showMessage("Nothing to undo", "error");
-    const [last, ...rest] = actionHistory;
-    if (last.action === "add_session_local") {
-      setSessions((prev) => prev.filter((s) => s.id !== last.payload.id));
-      showMessage("Added session undone (local)", "success");
-    } else if (last.action === "mark_attendance_local") {
-      // restore previous status
-      setSessions((prev) => prev.map((s) => (s.id === last.payload.id ? { ...s, attendance: last.payload.prev } : s)));
-      showMessage("Attendance change undone (local)", "success");
-    }
-    setActionHistory(rest);
+  const toggleAttendanceForm = (subjectId) => {
+    setSubjects(subjects.map(subject => subject.id === subjectId ? { ...subject, showAttendanceForm: !subject.showAttendanceForm } : subject));
   };
 
-  // Mark attendance (backend-driven). status: 'scheduled'|'extra', attendance: 'present'|'absent'
-  const markAttendance = async (subject, date, attendanceValue, status = "scheduled") => {
-    if (!userId) return showMessage("Please login to mark attendance", "error");
-    const dateStr = date || getLocalDateString();
+  const toggleShowSessions = (subjectId) => {
+    setSubjects(subjects.map(subject => subject.id === subjectId ? { ...subject, showSessions: !subject.showSessions } : subject));
+  };
 
-    const payload = {
-      userId,
-      subject,
-      date: dateStr,
-      attendance: attendanceValue,
-      status,
+  const calculateAttendance = (sessions) => {
+    if (sessions.length === 0) return 0;
+    const presentCount = sessions.filter(s => s.status === 'present').length;
+    return Math.round((presentCount / sessions.length) * 100);
     };
 
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_ATTENDANCE}/mark`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(txt || `HTTP ${res.status}`);
-      }
-      // refresh sessions after server returns success
-      await fetchAttendance();
-      showMessage(`Marked ${subject} ${dateStr} as ${attendanceValue}`, "success");
-    } catch (err) {
-      console.error("markAttendance error:", err);
-      showMessage("Failed to mark attendance. Try again.", "error");
-    } finally {
-      setLoading(false);
-    }
+  const getStatusClass = (percentage) => {
+    if (percentage >= targetPercentage) return 'status-good';
+    return 'status-warning';
   };
 
-  // Delete a single session (backend)
-  const deleteSession = async (session) => {
-    if (!userId) return showMessage("Please login to delete session", "error");
-    if (!window.confirm(`Delete session ${session.subject} on ${session.date}?`)) return;
-
-    setLoading(true);
-    try {
-      const path = `${API_ATTENDANCE}/${userId}/${encodeURIComponent(session.subject)}/${session.date}/${session.status}`;
-      const res = await fetch(path, { method: "DELETE" });
-      if (!res.ok) {
-        console.warn("Delete session responded", res.status);
-      }
-      await fetchAttendance();
-      showMessage("Session deleted", "success");
-    } catch (err) {
-      console.error("deleteSession error:", err);
-      showMessage("Failed to delete session", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Helpers to calculate stats (same as your original calcStats but uses sessions)
-  const calcStats = (subject) => {
-    const scheduledSessions = sessions.filter((s) => s.subject === subject && s.status === "scheduled");
-    const extraSessions = sessions.filter((s) => s.subject === subject && s.status === "extra");
-
-    const totalScheduled = scheduledSessions.length;
-    const attendedScheduled = scheduledSessions.filter((s) => s.attendance === "present").length;
-    const totalExtra = extraSessions.length;
-    const attendedExtra = extraSessions.filter((s) => s.attendance === "present").length;
-
-    const totalClasses = totalScheduled + totalExtra;
-    const totalAttended = attendedScheduled + attendedExtra;
-    const totalAbsent = (totalScheduled - attendedScheduled) + (totalExtra - attendedExtra);
-
-    if (totalClasses === 0) return { percentage: 0, attended: 0, total: 0, absent: 0, extra: totalExtra, extraAttended: attendedExtra, extraAbsent: totalExtra - attendedExtra, effectiveTotal: 0, classesNeeded: 0 };
-
-    const percentage = (totalAttended / totalClasses) * 100;
-    const classesNeeded = percentage < targetAttendance ? Math.ceil((targetAttendance * totalClasses - 100 * totalAttended) / (100 - targetAttendance)) : 0;
-
-    return { percentage, attended: totalAttended, total: totalClasses, absent: totalAbsent, extra: totalExtra, extraAttended: attendedExtra, extraAbsent: totalExtra - attendedExtra, effectiveTotal: totalClasses, classesNeeded };
-  };
-
-  // Calendar helpers
   const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
   const getFirstDayOfMonth = (month, year) => new Date(year, month, 1).getDay();
-
-  const getAttendanceStatus = (date, subject) => {
-    if (!subject) return null;
-    const dateStr = getLocalDateString(new Date(currentYear, currentMonth, date));
-    const session = sessions.find((s) => s.subject === subject && s.date === dateStr);
-    return session ? session.attendance : null;
-  };
-
+  const fmt = (n) => (n < 10 ? `0${n}` : `${n}`);
+  const toLocalDateString = (y, m, d) => `${y}-${fmt(m + 1)}-${fmt(d)}`; // m is 0-based
   const navigateMonth = (direction) => {
-    if (direction === "prev") {
-      if (currentMonth === 0) setCurrentYear((y) => y - 1);
-      setCurrentMonth((m) => (m === 0 ? 11 : m - 1));
+    if (direction === 'prev') {
+      if (currentMonth === 0) {
+        setCurrentMonth(11);
+        setCurrentYear(currentYear - 1);
+      } else {
+        setCurrentMonth(currentMonth - 1);
+      }
     } else {
-      if (currentMonth === 11) setCurrentYear((y) => y + 1);
-      setCurrentMonth((m) => (m === 11 ? 0 : m + 1));
+      if (currentMonth === 11) {
+        setCurrentMonth(0);
+        setCurrentYear(currentYear + 1);
+      } else {
+        setCurrentMonth(currentMonth + 1);
+      }
     }
   };
 
-  const renderCalendar = () => {
-    const daysInMonth = getDaysInMonth(currentMonth, currentYear);
-    const firstDay = getFirstDayOfMonth(currentMonth, currentYear);
-    const monthNames = [
-      "January","February","March","April","May","June",
-      "July","August","September","October","November","December"
-    ];
-    const days = [];
-
-    for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="calendar-day empty"></div>);
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const attendanceStatus = getAttendanceStatus(day, selectedSubjectForCalendar);
-      const isToday = new Date().getDate() === day && new Date().getMonth() === currentMonth && new Date().getFullYear() === currentYear;
-      days.push(
-        <div key={day} className={`calendar-day ${attendanceStatus || ""} ${isToday ? "today" : ""}`}>
-          <span className="day-number">{day}</span>
-          {attendanceStatus && <div className={`attendance-indicator ${attendanceStatus}`}>{attendanceStatus === "present" ? "✓" : "✗"}</div>}
-        </div>
-      );
-    }
-
-    return (
-      <div className="calendar-container">
-        <div className="calendar-header">
-          <button className="calendar-nav-btn" onClick={() => navigateMonth("prev")}>‹</button>
-          <h3 className="calendar-title">{monthNames[currentMonth]} {currentYear}</h3>
-          <button className="calendar-nav-btn" onClick={() => navigateMonth("next")}>›</button>
-        </div>
-
-        <div className="calendar-weekdays">
-          {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => <div key={d} className="weekday">{d}</div>)}
-        </div>
-
-        <div className="calendar-grid">{days}</div>
-
-        <div className="calendar-legend">
-          <div className="legend-item"><div className="legend-color present"></div><span>Present</span></div>
-          <div className="legend-item"><div className="legend-color absent"></div><span>Absent</span></div>
-          <div className="legend-item"><div className="legend-color today"></div><span>Today</span></div>
-        </div>
-      </div>
-    );
+  const getDayStatusForSubject = (day) => {
+    if (!selectedSubjectForCalendar) return null;
+    // Use local YYYY-MM-DD to match input[type=date] values and stored session dates
+    const dateStr = toLocalDateString(currentYear, currentMonth, day);
+    const subj = subjects.find(s => s.id === selectedSubjectForCalendar);
+    if (!subj) return null;
+    const daySessions = subj.sessions.filter(s => s.date === dateStr);
+    if (daySessions.length === 0) return null;
+    const hasPresent = daySessions.some(s => s.status === 'present');
+    const hasAbsent = daySessions.some(s => s.status === 'absent');
+    const hasOnlyExtra = daySessions.every(s => s.isExtra);
+    if (hasPresent && hasAbsent) return 'mixed';
+    if (hasOnlyExtra) return 'extra';
+    return hasPresent ? 'present' : 'absent';
   };
-
-  const subjects = [...new Set(timetable.map((t) => t.subject))];
 
   return (
-    <div className="attendance-container">
-      <div className="top-row">
-        <button className="back-arrow-btn" onClick={onBack}>←</button>
-        <h2 className="attendance-title">📋 Attendance Tracker</h2>
-        {loading && <div className="loading-pill">Syncing…</div>}
-      </div>
-
-      {globalMessage && (
-        <div className={`global-message ${globalMessage.type}`}>{globalMessage.text}</div>
-      )}
-
-      <div className="upload-section">
-        <h3>Target Attendance Percentage</h3>
-        <div className="target-input">
-          <input type="number" min="0" max="100" value={targetAttendance} onChange={(e) => setTargetAttendance(parseInt(e.target.value, 10) || 75)} className="target-slider" />
-          <span className="target-label">%</span>
-        </div>
-
-        <h3>Enter All Your Subjects</h3>
-        <div className="manual-input">
-          <input type="text" placeholder="Type subject name and press Enter to add" value={manualSubject} onChange={(e) => setManualSubject(e.target.value)} onKeyPress={handleKeyPress} className="subject-input" />
-          <button className="btn btn-add" onClick={addManualEntry}>Add Subject</button>
-        </div>
-        <p className="subject-info">Type a subject to start tracking. You can mark attendance after adding a subject.</p>
-
-        {timetable.length > 0 && (
-          <div className="timetable-display">
-            <div className="timetable-header">
-              <h4>Your Subjects ({timetable.length})</h4>
-              <button className="btn-toggle" onClick={() => setShowTimetable(!showTimetable)}>{showTimetable ? "Hide Subjects" : "Show Subjects"}</button>
+    <div className="attendance-tracker">
+      <header className="tracker-header">
+        <div className="grade-header" style={{ width: 'min(1100px, 92vw)', margin: '0 auto 1.5rem', padding: '1rem 2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start', minWidth: '56px' }}>
             </div>
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', paddingLeft: '8px', minWidth: 0 }}>
+              <img src={'/attend.jpg'} alt="Attendance" className="title-logo" style={{ marginLeft: 8 }} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/attend.jpg'; }} />
+              <h3 className="grade-title" style={{ margin: 0, fontWeight: 800, textTransform: 'uppercase', fontSize: 'clamp(1.8rem, 6vw, 3rem)', lineHeight: 1, whiteSpace: 'nowrap' }}>Attendify</h3>
+            </div>
+            <div style={{ flex: 1 }} />
+          </div>
+        </div>
+        <div className="header-actions" style={{ justifyContent: 'center', margin: '0 auto', width: 'min(1100px, 92vw)' }}>
+          <button className="btn-calendar" onClick={() => setShowCalendar(v => !v)}>
+            {showCalendar ? '▲ Hide Calendar' : '📅 Calendar View'}
+          </button>
+          {undoStack.length > 0 && (
+            <button className="btn-undo" onClick={handleUndo}>↶ Undo</button>
+          )}
+        </div>
+      </header>
 
-            {showTimetable && (
+      <div style={{ width: 'min(1100px, 92vw)', margin: '0 auto' }}>
+      <section className="config-panel">
+        <div className="config-content">
+          <div className="config-item">
+            <label className="config-label">Target Attendance %</label>
+            <input type="number" className="config-input" value={targetPercentage} onChange={(e) => setTargetPercentage(Number(e.target.value))} min="0" max="100" />
+          </div>
+
+          <div className="config-item">
+            <label className="config-label">Add Subject</label>
+            <div className="add-subject-group">
+              <input type="text" className="config-input" placeholder="Subject name" value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleAddSubject()} />
+              <button className="btn-add" onClick={handleAddSubject}>+ Add</button>
+            </div>
+          </div>
+
+          {subjects.length > 0 && (
+            <div className="config-item">
+              <label className="config-label">Subjects ({subjects.length})</label>
               <div className="subjects-list">
-                {subjects.map((subject) => (
-                  <div key={subject} className="subject-item">
-                    <span className="subject-name">{subject}</span>
-                    <button className="btn-remove" onClick={() => removeTimetableEntry("General", subject)} title="Remove subject">×</button>
+                {subjects.map(subject => (
+                  <div key={subject.id} className="subject-tag">
+                    <span>{subject.name}</span>
+                    <button className="btn-remove-tag" onClick={() => handleRemoveSubject(subject.id)}>×</button>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
+      </section>
       </div>
 
-      {/* Calendar */}
-      {subjects.length > 0 && (
-        <div className="calendar-section">
-          <h3>📅 Attendance Calendar</h3>
-          <div className="calendar-subject-selector">
-            <label htmlFor="calendar-subject">Select Subject:</label>
-            <select id="calendar-subject" value={selectedSubjectForCalendar} onChange={(e) => setSelectedSubjectForCalendar(e.target.value)} className="calendar-subject-select">
-              <option value="">Choose a subject...</option>
-              {subjects.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
-            </select>
+      {showCalendar && (
+        <section className="calendar-grid-section">
+          <div className="calendar-controls">
+            <div className="controls-content">
+              <div className="control-group">
+                <label className="control-label">Subject</label>
+                <select
+                  className="subject-select"
+                  value={selectedSubjectForCalendar}
+                  onChange={(e) => setSelectedSubjectForCalendar(e.target.value)}
+                >
+                  <option value="">Select a subject</option>
+                  {subjects.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="control-group">
+                <label className="control-label">Month</label>
+                <div className="month-navigation">
+                  <button className="btn-nav" onClick={() => navigateMonth('prev')}>‹ Prev</button>
+                  <div className="current-month">
+                    {new Date(currentYear, currentMonth).toLocaleString(undefined, { month: 'long', year: 'numeric' })}
+                  </div>
+                  <button className="btn-nav" onClick={() => navigateMonth('next')}>Next ›</button>
+                </div>
+              </div>
+            </div>
           </div>
-          {selectedSubjectForCalendar && renderCalendar()}
-        </div>
+
+          {selectedSubjectForCalendar && (
+            <>
+              <div className="calendar-legend">
+                <div className="legend-content">
+                  <div className="legend-title">Legend</div>
+                  <div className="legend-items">
+                    <div className="legend-item"><div className="legend-color legend-present"></div><span className="legend-text">Present</span></div>
+                    <div className="legend-item"><div className="legend-color legend-absent"></div><span className="legend-text">Absent</span></div>
+                    <div className="legend-item"><div className="legend-color legend-extra"></div><span className="legend-text">Extra</span></div>
+                    <div className="legend-item"><div className="legend-color legend-mixed"></div><span className="legend-text">Mixed</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="calendar-container">
+                <div className="calendar-weekdays">
+                  {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => (
+                    <div key={d} className="weekday">{d}</div>
+                  ))}
+                </div>
+                <div className="calendar-grid">
+                  {Array.from({ length: getFirstDayOfMonth(currentMonth, currentYear) }).map((_, i) => (
+                    <div key={`empty-${i}`} className="calendar-day empty" />
+                  ))}
+                  {Array.from({ length: getDaysInMonth(currentMonth, currentYear) }).map((_, idx) => {
+                    const day = idx + 1;
+                    const status = getDayStatusForSubject(day);
+                    const isToday = new Date().getDate() === day && new Date().getMonth() === currentMonth && new Date().getFullYear() === currentYear;
+                    const classes = ['calendar-day'];
+                    if (status) classes.push(status);
+                    if (isToday) classes.push('today');
+                    return (
+                      <div key={day} className={classes.join(' ')}>
+                        <div className="day-number">{day}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </section>
       )}
 
-      {/* Subjects Grid */}
-      <div className="subjects-grid">
+      <section className="subjects-grid">
         {subjects.length === 0 ? (
-          <p className="no-classes-text">No subjects added yet. Add subjects above to start tracking attendance.</p>
+          <div className="empty-state">
+            <p>No subjects added yet. Add your first subject to start tracking attendance!</p>
+          </div>
         ) : (
-          subjects.map((subject) => {
-            const stat = calcStats(subject);
-            const scheduledSessions = sessions.filter((s) => s.subject === subject && s.status === "scheduled").sort((a,b) => new Date(b.date) - new Date(a.date));
-            const extraSessions = sessions.filter((s) => s.subject === subject && s.status === "extra").sort((a,b) => new Date(b.date) - new Date(a.date));
+          subjects.map(subject => {
+            const percentage = calculateAttendance(subject.sessions);
+            const statusClass = getStatusClass(percentage);
 
             return (
-              <div key={subject} className="subject-card">
-                <h3 className="subject-title">{subject}</h3>
-                <div className="stats-overview">
-                  <p className={`percentage ${stat.percentage >= targetAttendance ? "good" : "warning"}`}>Attendance: {stat.percentage.toFixed(1)}%</p>
-                  <p className="total-classes">Total Classes: {stat.total}</p>
-                  {stat.extra > 0 && <p className="extra-classes">Extra Classes: {stat.extra} (Present: {stat.extraAttended}, Absent: {stat.extraAbsent})</p>}
-                </div>
-
-                <div className="attendance-buttons-main">
-                  <h4>Mark Attendance</h4>
-                  <input type="date" value={selectedDates[subject] || getLocalDateString()} onChange={(e) => setSelectedDates((prev) => ({ ...prev, [subject]: e.target.value }))} />
-                  <div className="main-attendance-buttons">
-                    <button className="btn-present" onClick={() => markAttendance(subject, selectedDates[subject] || getLocalDateString(), "present", "scheduled")}>Present</button>
-                    <button className="btn-absent" onClick={() => markAttendance(subject, selectedDates[subject] || getLocalDateString(), "absent", "scheduled")}>Absent</button>
-                    <button className="btn-extra" onClick={() => setShowExtraOptions((p) => ({ ...p, [subject]: !p[subject] }))}>Extra Class</button>
+              <div key={subject.id} className="subject-card">
+                <div className="card-header">
+                  <h3 className="card-title">{subject.name}</h3>
+                  <div className={`attendance-badge ${statusClass}`}>
+                    {percentage}%
                   </div>
                 </div>
 
-                {/* Scheduled History */}
-                {scheduledSessions.length > 0 && (
-                  <div className="scheduled-history">
-                    <h5>Scheduled History</h5>
-                    {scheduledSessions.slice(0, scheduledShowMore[subject] ? undefined : 3).map((s) => (
-                      <div key={s.id} className="session-item">
-                        <span>{s.date}</span>
-                        <span className={s.attendance}>{s.attendance}</span>
-                        <button onClick={() => deleteSession(s)}>🗑️</button>
+                <div className="card-stats">
+                  <span className="stat-item">Total Classes: {subject.sessions.length}</span>
+                  <span className="stat-item">Present: {subject.sessions.filter(s => s.status === 'present').length}</span>
+                  <span className="stat-item">Extra Classes: {subject.sessions.filter(s => s.isExtra).length}</span>
+                </div>
+
+                <button className={`btn-toggle-form ${subject.showAttendanceForm ? 'btn-toggle-form-active' : ''}`} onClick={() => toggleAttendanceForm(subject.id)}>
+                  {subject.showAttendanceForm ? '▲ Hide Attendance Form' : '▼ Mark Attendance'}
+                </button>
+
+                {subject.showAttendanceForm && (
+                  <div className="card-actions">
+                    <input type="date" className="date-input" value={selectedDates[subject.id] || new Date().toISOString().split('T')[0]} onChange={(e) => setSelectedDates({ ...selectedDates, [subject.id]: e.target.value })} />
+
+                    <div className="attendance-section">
+                      <label className="section-label">Regular Attendance</label>
+                      <div className="action-buttons-regular">
+                        <button className="btn-present" onClick={() => handleMarkAttendance(subject.id, 'present', false)}>✓ Present</button>
+                        <button className="btn-absent" onClick={() => handleMarkAttendance(subject.id, 'absent', false)}>✗ Absent</button>
                       </div>
-                    ))}
-                    {scheduledSessions.length > 3 && <button className="btn-show-more" onClick={() => setScheduledShowMore((prev) => ({ ...prev, [subject]: !prev[subject] }))}>{scheduledShowMore[subject] ? "Show Less" : "Show More"}</button>}
+                    </div>
+
+                    <div className="attendance-section">
+                      <label className="section-label">Extra Class</label>
+                      <div className="action-buttons-extra">
+                        <button className="btn-extra-present" onClick={() => handleMarkAttendance(subject.id, 'present', true)}>+ Extra (Present)</button>
+                        <button className="btn-extra-absent" onClick={() => handleMarkAttendance(subject.id, 'absent', true)}>+ Extra (Absent)</button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {/* Extra History */}
-                {extraSessions.length > 0 && (
-                  <div className="extra-history">
-                    <h5>Extra Class History</h5>
-                    {extraSessions.slice(0, extraShowMore[subject] ? undefined : 3).map((s) => (
-                      <div key={s.id} className="extra-session-item">
-                        <span>{s.date}</span>
-                        <span className={s.attendance}>{s.attendance}</span>
-                        <button onClick={() => deleteSession(s)}>🗑️</button>
+                {subject.sessions.length > 0 && (
+                  <div className="sessions-history">
+                    <div className="history-header">
+                      <h4 className="history-title">All Sessions ({subject.sessions.length})</h4>
+                      <button className="btn-toggle-sessions" onClick={() => toggleShowSessions(subject.id)}>
+                        {subject.showSessions ? '▲ Hide' : '▼ Show'}
+                      </button>
+                    </div>
+                    {subject.showSessions && (
+                      <div className="sessions-list">
+                        {subject.sessions.map((session) => (
+                          <div key={session.id} className="session-item">
+                            <span className="session-date">{session.date}</span>
+                            <span className={`session-status status-${session.status}`}>
+                              {session.isExtra && '⭐ Extra - '}
+                              {session.status === 'present' ? '✓ Present' : '✗ Absent'}
+                            </span>
+                            <button className="btn-delete-session" onClick={() => handleDeleteSession(subject.id, session.id)} title="Delete session">🗑</button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                    {extraSessions.length > 3 && <button className="btn-show-more" onClick={() => setExtraShowMore((prev) => ({ ...prev, [subject]: !prev[subject] }))}>{extraShowMore[subject] ? "Show Less" : "Show More"}</button>}
-                  </div>
-                )}
-
-                {/* Extra Options */}
-                {showExtraOptions[subject] && (
-                  <div className="extra-options">
-                    <button className="btn-present-small" onClick={() => markAttendance(subject, selectedDates[subject] || getLocalDateString(), "present", "extra")}>Extra Present</button>
-                    <button className="btn-absent-small" onClick={() => markAttendance(subject, selectedDates[subject] || getLocalDateString(), "absent", "extra")}>Extra Absent</button>
-                    <button className="btn-close-extra" onClick={() => setShowExtraOptions((p) => ({ ...p, [subject]: false }))}>✕ Close</button>
+                    )}
                   </div>
                 )}
               </div>
             );
           })
         )}
-      </div>
-
+      </section>
     </div>
   );
 };

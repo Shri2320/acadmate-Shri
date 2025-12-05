@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from "react";
-import "./Calendar.css";
-import axios from "axios";
+import React, { useState, useEffect } from 'react'
+import './Calendar.css'
 
 const Calendar = ({ onBack }) => {
-  const [events, setEvents] = useState([]);
-  const [newEvent, setNewEvent] = useState({ title: "", date: "", type: "event" });
-  const [notification, setNotification] = useState("");
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [user, setUser] = useState(null);
+  const [events, setEvents] = useState([
+    { id: 1, title: 'Fee Due Date', date: '2025-02-15', type: 'fee', isCollege: true },
+    { id: 2, title: 'Mid-term Exams', date: '2025-02-20', type: 'exam', isCollege: true },
+    { id: 3, title: 'Sports Day', date: '2025-02-28', type: 'event', isCollege: true }
+  ])
+  
+  const [newEvent, setNewEvent] = useState({ title: '', date: '', type: 'event' })
+  const [notification, setNotification] = useState('')
+  const [currentMonth, setCurrentMonth] = useState(new Date())
 
-  // Load logged-in user
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
@@ -69,39 +71,17 @@ const Calendar = ({ onBack }) => {
     );
 
     if (feeEvents.length > 0) {
-      setNotification(
-        `⚠️ Fee due in ${Math.ceil(
-          (new Date(feeEvents[0].date + "T00:00:00") - today) / (1000 * 60 * 60 * 24)
-        )} day(s)!`
-      );
-      const timer = setTimeout(() => setNotification(""), 5000);
-      return () => clearTimeout(timer);
+      setNotification(`⚠️ Fee due in ${Math.ceil((new Date(feeEvents[0].date) - today) / (1000 * 60 * 60 * 24))} days!`)
+      setTimeout(() => setNotification(''), 5000)
     }
-  }, [events]);
+  }, [events])
 
-  // Add new event
-  const addEvent = async () => {
-    if (!user) return alert("Please log in first!");
-    if (!newEvent.title || !newEvent.date) return alert("Please fill all fields");
-
-    try {
-      const res = await axios.post("http://localhost:5000/api/reminder/add", {
-        userId: user.id,
-        email: user.email,
-        title: newEvent.title,
-        date: newEvent.date,
-        type: newEvent.type,
-      });
-
-      if (res.data && res.data.id) {
-        setEvents((prev) => [...prev, { id: res.data.id, ...newEvent, isCollege: false }]);
-      }
-      setNewEvent({ title: "", date: "", type: "event" });
-    } catch (err) {
-      console.error("Error adding event:", err);
-      alert("Failed to add event");
+  const addEvent = () => {
+    if (newEvent.title && newEvent.date) {
+      setEvents([...events, { id: Date.now(), ...newEvent, isCollege: false }])
+      setNewEvent({ title: '', date: '', type: 'event' })
     }
-  };
+  }
 
   // Delete event manually
   const deleteEvent = async (eventId) => {
@@ -115,51 +95,36 @@ const Calendar = ({ onBack }) => {
     }
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") addEvent();
-  };
-
-  // Calendar generation
   const getDaysInMonth = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const days = [];
-
-    for (let i = 0; i < firstDay.getDay(); i++) days.push(null);
-
-    for (let day = 1; day <= lastDay.getDate(); day++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      const dayEvents = events.filter((e) => e.date === dateStr);
-      days.push({ day, events: dayEvents });
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const firstDay = new Date(year, month, 1)
+    const lastDay = new Date(year, month + 1, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDayOfWeek = firstDay.getDay()
+    
+    const days = []
+    for (let i = 0; i < startingDayOfWeek; i++) days.push(null)
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+      const dayEvents = events.filter(event => event.date === dateStr)
+      days.push({ day, events: dayEvents })
     }
-    return days;
-  };
+    return days
+  }
 
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-  const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-  if (!user) return <p>Please login to view your calendar.</p>;
-
-  // Correct upcoming events calculation
-  const upcomingEvents = events
-    .filter((e) => {
-      if (!e.date) return false;
-      const eventDate = new Date(e.date + "T00:00:00");
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return eventDate >= today;
-    })
-    .sort((a, b) => new Date(a.date + "T00:00:00") - new Date(b.date + "T00:00:00"))
-    .slice(0, 6);
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+  const weekDays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
   return (
     <div className="calendar-container">
-      <h2 className="calendar-title">📅 EventBuddy</h2>
+  <h2 className="calendar-title">
+   {/* prefer public asset if available */}
+  <img src={'/calendar.png'} onError={(e)=>{e.currentTarget.onerror=null; e.currentTarget.src='/logo.png'}} alt="EventBuddy Icon" className="calendar-icon" />
+   EventBuddy
+  </h2>
+
+
       {notification && <div className="notification">{notification}</div>}
 
       {/* Add Event Form */}
@@ -169,34 +134,21 @@ const Calendar = ({ onBack }) => {
           <div className="form-row">
             <div className="input-group">
               <label htmlFor="event-title">Event Title</label>
-              <input
-                id="event-title"
-                type="text"
-                placeholder="Enter event title"
-                value={newEvent.title}
-                onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-                onKeyPress={handleKeyPress}
-                className="form-input"
-              />
+              <input id="event-title" type="text" placeholder="Enter event title" 
+                value={newEvent.title} onChange={(e)=>setNewEvent({...newEvent,title:e.target.value})} 
+                onKeyPress={handleKeyPress} className="form-input" />
             </div>
             <div className="input-group">
               <label htmlFor="event-date">Date</label>
-              <input
-                id="event-date"
-                type="date"
-                value={newEvent.date}
-                onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
-                className="form-input"
-              />
+              <input id="event-date" type="date" 
+                value={newEvent.date} onChange={(e)=>setNewEvent({...newEvent,date:e.target.value})} 
+                className="form-input" />
             </div>
             <div className="input-group">
               <label htmlFor="event-type">Type</label>
-              <select
-                id="event-type"
-                value={newEvent.type}
-                onChange={(e) => setNewEvent({ ...newEvent, type: e.target.value })}
-                className="form-input"
-              >
+              <select id="event-type" value={newEvent.type} 
+                onChange={(e)=>setNewEvent({...newEvent,type:e.target.value})} 
+                className="form-input">
                 <option value="event">Event</option>
                 <option value="exam">Exam</option>
                 <option value="assignment">Assignment</option>
@@ -212,31 +164,24 @@ const Calendar = ({ onBack }) => {
       {/* Calendar Navigation */}
       <div className="calendar-nav-section">
         <div className="calendar-nav">
-          <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))} className="btn nav-btn">←</button>
+          <button onClick={()=>setCurrentMonth(new Date(currentMonth.getFullYear(),currentMonth.getMonth()-1))} className="btn nav-btn">←</button>
           <h3>{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h3>
-          <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))} className="btn nav-btn">→</button>
+          <button onClick={()=>setCurrentMonth(new Date(currentMonth.getFullYear(),currentMonth.getMonth()+1))} className="btn nav-btn">→</button>
         </div>
       </div>
 
       {/* Calendar Grid */}
       <div className="calendar-grid-section">
         <div className="calendar-grid">
-          {weekDays.map((day) => (
-            <div key={day} className="calendar-header-day">{day}</div>
-          ))}
-          {getDaysInMonth(currentMonth).map((day, index) => (
-            <div key={index} className={`calendar-day ${day?.events?.length ? "has-event" : ""}`}>
-              {day && (
-                <>
-                  <div className="day-number">{day.day}</div>
-                  {day.events.map((event) => (
-                    <div key={event.id} className={`event-item ${event.type}`} title="Click to delete" onClick={() => deleteEvent(event.id)}>
-                      {event.title}
-                      {event.isCollege && <span className="college-badge">📚</span>}
-                    </div>
-                  ))}
-                </>
-              )}
+          {weekDays.map(day=><div key={day} className="calendar-header-day">{day}</div>)}
+          {getDaysInMonth(currentMonth).map((day,index)=>(
+            <div key={index} className={`calendar-day ${day?.events?.length?'has-event':''}`}>
+              {day && <>
+                <div className="day-number">{day.day}</div>
+                {day.events.map(event=>(
+                  <div key={event.id} className={`event-item ${event.type}`}>{event.title}{event.isCollege && <span className="college-badge">📚</span>}</div>
+                ))}
+              </>}
             </div>
           ))}
         </div>
@@ -246,23 +191,21 @@ const Calendar = ({ onBack }) => {
       <div className="upcoming-events-section">
         <h3>Upcoming Events</h3>
         <div className="events-grid">
-          {upcomingEvents.length > 0 ? (
-            upcomingEvents.map((event) => (
+          {events.filter(event=>new Date(event.date)>=new Date()).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,6)
+            .map(event=>(
               <div key={event.id} className={`event-card ${event.type}`}>
                 <div className="event-info">
                   <strong>{event.title}</strong>
-                  <span className="event-date">{new Date(event.date + "T00:00:00").toLocaleDateString()}</span>
+                  <span className="event-date">{new Date(event.date).toLocaleDateString()}</span>
                   {event.isCollege && <span className="college-badge">College Event</span>}
                 </div>
               </div>
             ))
-          ) : (
-            <p className="no-events">No upcoming events 🎉</p>
-          )}
+          }
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Calendar;
+export default Calendar
