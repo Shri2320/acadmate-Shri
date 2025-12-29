@@ -40,12 +40,41 @@ function App() {
     window.history.pushState({ section }, "", `#${section.replace(/\s+/g, "")}`);
   };
 
+  // Handlers
+  // const handleLogin = (data) => {
+  //   setUserData(data);
+  //   setIsLoggedIn(true);
+  //   setIsLoginModalOpen(false);
+  //   setShowProfile(false);
+  //   setActiveSection('Home');
+  //   try { window.history.pushState({ section: 'Home' }, '', '#Home'); } catch {}
+  // };
   const handleLogin = (data) => {
     setUserData(data);
     setIsLoggedIn(true);
+
+    // ✅ persist login
+    localStorage.setItem('isLoggedIn', 'true');
+    localStorage.setItem('userData', JSON.stringify(data));
+
     setIsLoginModalOpen(false);
-    setActiveSection("Home");
-    window.history.pushState({ section: "Home" }, "", "#Home");
+    setShowProfile(false);
+    setActiveSection('Home');
+
+    try {
+      window.history.pushState({ section: 'Home' }, '', '#Home');
+    } catch {}
+  };
+
+  const handleShowProfile = () => {
+    setShowProfile(true);
+    setActiveSection('Profile');
+    try { window.history.pushState({ section: 'Profile' }, '', '#Profile'); } catch {}
+  };
+  const handleBackToHome = () => {
+    setShowProfile(false);
+    setActiveSection('Home');
+    try { window.history.pushState({ section: 'Home' }, '', '#Home'); } catch {}
   };
 
   const handleLogout = () => {
@@ -53,14 +82,26 @@ function App() {
     setIsLoggedIn(false);
     setUserData(null);
     setShowProfile(false);
-    setActiveSection("Home");
-    window.history.pushState({ section: "Home" }, "", "#Home");
+    setActiveSection('Home');
+
+    // ✅ clear persisted data
+    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('userData');
+
+    try {
+      window.history.pushState({ section: 'Home' }, '', '#Home');
+    } catch {}
   };
 
-  const handleShowProfile = () => {
-    setShowProfile(true);
-    setActiveSection("Profile");
-    window.history.pushState({ section: "Profile" }, "", "#Profile");
+
+  const handleSectionChange = (section) => {
+    // Reset showProfile when navigating to any section other than Profile
+    if (section !== 'Profile') {
+      setShowProfile(false);
+    }
+    setActiveSection(section);
+    // Push into browser history so back/forward works
+    try { window.history.pushState({ section }, '', `#${section.replace(/\s+/g, '')}`); } catch {}
   };
 
   /* ================== Browser Back / Forward ================== */
@@ -83,6 +124,16 @@ function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [isLoggedIn]);
+  useEffect(() => {
+    const storedLogin = localStorage.getItem('isLoggedIn');
+    const storedUser = localStorage.getItem('userData');
+
+    if (storedLogin === 'true' && storedUser) {
+      setIsLoggedIn(true);
+      setUserData(JSON.parse(storedUser));
+    }
+  }, []);
+
 
   /* ================== Render Content ================== */
   const renderContent = () => {
