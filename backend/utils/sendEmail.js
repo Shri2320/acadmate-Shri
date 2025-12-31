@@ -68,7 +68,7 @@ const sendEventReminders = async () => {
           lastReminderSent: new Date().toISOString(),
         });
       }
-
+//khoigo8
       // 3-hour reminder
       if (hoursDiff <= 24 && hoursDiff > 0) {
         const lastSent = reminder.lastReminderSent ? new Date(reminder.lastReminderSent) : null;
