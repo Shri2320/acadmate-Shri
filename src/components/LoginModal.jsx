@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { X, Eye, EyeOff } from "lucide-react";
 import "./Register.css";
 import ApiService from "../services/api";
 
@@ -29,6 +29,12 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
   const [verifyingOTP, setVerifyingOTP] = useState(false);
   const [submittingForm, setSubmittingForm] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+  
+  // Password visibility states
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
   const branches = [
     "Biotechnology",
@@ -112,7 +118,17 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
       }
       setOtpVerified(true);
       setResendTimer(0);
-      setError({ message: "✅ OTP verified successfully!", field: "" });
+      
+      // For forgot password, auto-submit the form after OTP verification
+      if (isForgotPassword) {
+        // Use setTimeout to ensure state is updated before submission
+        setTimeout(() => {
+          document.querySelector('form')?.requestSubmit();
+        }, 100);
+      } else {
+        // For registration, just show the success message
+        setError({ message: "✅ OTP verified successfully!", field: "" });
+      }
     } catch (err) {
       // Handle rate limit errors with a better message
       if (err.status === 429 || err.message?.includes("Too many")) {
@@ -332,6 +348,16 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
           return;
         }
 
+        // Check if OTP was sent
+        if (!otpSent) {
+          setError({
+            message: "Please click 'Send OTP' button first to send OTP to your email.",
+            field: "email",
+          });
+          setLoading(false);
+          return;
+        }
+
         // Check OTP verification
         if (!otpVerified) {
           setError({
@@ -486,45 +512,103 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
                   <label className="block text-sm font-medium custom-brown mb-2">
                     Email
                   </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      disabled={otpSent && !otpVerified}
-                      className={`flex-1 px-3 py-2 border rounded-lg ${
-                        error.field === "email"
-                          ? "border-red-500"
-                          : otpVerified
-                          ? "border-green-500"
-                          : "border-gray-300"
-                      } ${otpSent && !otpVerified ? "bg-gray-100" : ""}`}
-                    />
-                    {!otpVerified && (
-                      <button
-                        type="button"
-                        onClick={handleSendOTP}
-                        disabled={sendingOTP || resendTimer > 0}
-                        className="px-4 py-2 bg-accent text-brown font-semibold rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                      >
-                        {sendingOTP
-                          ? "Sending..."
-                          : resendTimer > 0
-                          ? `Resend (${resendTimer}s)`
-                          : "Send OTP"}
-                      </button>
-                    )}
-                    {otpVerified && (
-                      <div className="px-4 py-2 bg-green-100 text-green-700 font-semibold rounded-lg flex items-center whitespace-nowrap">
-                        ✅ Verified
-                      </div>
-                    )}
-                  </div>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    disabled={otpVerified}
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      error.field === "email"
+                        ? "border-red-500"
+                        : otpVerified
+                        ? "border-green-500"
+                        : "border-gray-300"
+                    } ${otpVerified ? "bg-gray-100" : ""}`}
+                  />
                   {error.field === "email" && (
                     <p className="text-red-500 text-sm mt-1">{error.message}</p>
                   )}
                 </div>
+
+                {/* New Password Fields (shown first, before OTP) */}
+                {!otpVerified && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium custom-brown mb-2">
+                        New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          name="newPassword"
+                          value={formData.newPassword}
+                          onChange={handleInputChange}
+                          className={`w-full px-3 py-2 pr-10 border rounded-lg ${
+                            error.field === "newPassword"
+                              ? "border-red-500"
+                              : "border-gray-300"
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        >
+                          {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      {error.field === "newPassword" && (
+                        <p className="text-red-500 text-sm mt-1">{error.message}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium custom-brown mb-2">
+                        Confirm New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmNewPassword ? "text" : "password"}
+                          name="confirmNewPassword"
+                          value={formData.confirmNewPassword}
+                          onChange={handleInputChange}
+                          className={`w-full px-3 py-2 pr-10 border rounded-lg ${
+                            error.field === "confirmNewPassword"
+                              ? "border-red-500"
+                              : "border-gray-300"
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        >
+                          {showConfirmNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      {error.field === "confirmNewPassword" && (
+                        <p className="text-red-500 text-sm mt-1">{error.message}</p>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Send OTP Button (shown after entering passwords) */}
+                {!otpSent && !otpVerified && (
+                  <button
+                    type="button"
+                    onClick={handleSendOTP}
+                    disabled={sendingOTP || resendTimer > 0 || !formData.email || !formData.newPassword}
+                    className="w-full px-4 py-2 bg-accent text-brown font-semibold rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {sendingOTP
+                      ? "Sending..."
+                      : resendTimer > 0
+                      ? `Resend OTP (${resendTimer}s)`
+                      : "Send OTP"}
+                  </button>
+                )}
 
                 {/* OTP Input */}
                 {otpSent && !otpVerified && (
@@ -561,49 +645,11 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
                   </div>
                 )}
 
-                {/* New Password Fields (shown after OTP verification) */}
+                {/* Success Message */}
                 {otpVerified && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium custom-brown mb-2">
-                        New Password
-                      </label>
-                      <input
-                        type="password"
-                        name="newPassword"
-                        value={formData.newPassword}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-lg ${
-                          error.field === "newPassword"
-                            ? "border-red-500"
-                            : "border-gray-300"
-                        }`}
-                      />
-                      {error.field === "newPassword" && (
-                        <p className="text-red-500 text-sm mt-1">{error.message}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium custom-brown mb-2">
-                        Confirm New Password
-                      </label>
-                      <input
-                        type="password"
-                        name="confirmNewPassword"
-                        value={formData.confirmNewPassword}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-lg ${
-                          error.field === "confirmNewPassword"
-                            ? "border-red-500"
-                            : "border-gray-300"
-                        }`}
-                      />
-                      {error.field === "confirmNewPassword" && (
-                        <p className="text-red-500 text-sm mt-1">{error.message}</p>
-                      )}
-                    </div>
-                  </>
+                  <div className="p-3 bg-green-100 text-green-700 font-semibold rounded-lg text-center">
+                    ✅ OTP Verified! Password reset in progress...
+                  </div>
                 )}
               </>
             ) : (
@@ -656,41 +702,25 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
               <label className="block text-sm font-medium custom-brown mb-2">
                 Email
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  disabled={otpSent && !otpVerified}
-                  className={`flex-1 px-3 py-2 border rounded-lg ${
-                    error.field === "email"
-                      ? "border-red-500"
-                      : otpVerified
-                      ? "border-green-500"
-                      : "border-gray-300"
-                  } ${otpSent && !otpVerified ? "bg-gray-100" : ""}`}
-                />
-                {(isRegistering || isForgotPassword) && !otpVerified && (
-                  <button
-                    type="button"
-                    onClick={handleSendOTP}
-                    disabled={sendingOTP || resendTimer > 0}
-                    className="px-4 py-2 bg-accent text-brown font-semibold rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                  >
-                    {sendingOTP
-                      ? "Sending..."
-                      : resendTimer > 0
-                      ? `Resend (${resendTimer}s)`
-                      : "Send OTP"}
-                  </button>
-                )}
-                {(isRegistering || isForgotPassword) && otpVerified && (
-                  <div className="px-4 py-2 bg-green-100 text-green-700 font-semibold rounded-lg flex items-center whitespace-nowrap">
-                    ✅ Verified
-                  </div>
-                )}
-              </div>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                disabled={isRegistering && otpSent && !otpVerified}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  error.field === "email"
+                    ? "border-red-500"
+                    : otpVerified
+                    ? "border-green-500"
+                    : "border-gray-300"
+                } ${isRegistering && otpSent && !otpVerified ? "bg-gray-100" : ""}`}
+              />
+              {isRegistering && otpVerified && (
+                <div className="mt-2 px-3 py-2 bg-green-100 text-green-700 font-semibold rounded-lg flex items-center">
+                  ✅ Email Verified
+                </div>
+              )}
               {error.field === "email" && (
                 <p className="text-red-500 text-sm mt-1">{error.message}</p>
               )}
@@ -750,17 +780,26 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
                     </button>
                   )}
                 </div>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-lg ${
-                    error.field === "password"
-                      ? "border-red-500"
-                      : "border-gray-300"
-                  }`}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className={`w-full px-3 py-2 pr-10 border rounded-lg ${
+                      error.field === "password"
+                        ? "border-red-500"
+                        : "border-gray-300"
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
                 {error.field === "password" && (
                   <p className="text-red-500 text-sm mt-1">{error.message}</p>
                 )}
@@ -770,17 +809,26 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
                   <label className="block text-sm font-medium custom-brown mb-2">
                     Confirm Password
                   </label>
-                  <input
-                    type="password"
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleInputChange}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      error.field === "confirmPassword"
-                        ? "border-red-500"
-                        : "border-gray-300"
-                    }`}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleInputChange}
+                      className={`w-full px-3 py-2 pr-10 border rounded-lg ${
+                        error.field === "confirmPassword"
+                          ? "border-red-500"
+                          : "border-gray-300"
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                   {error.field === "confirmPassword" && (
                     <p className="text-red-500 text-sm mt-1">
                       {error.message}
@@ -864,9 +912,35 @@ export default function LoginModal({ isOpen, onClose, onLogin }) {
                   {error.field === "phone" && (
                     <p className="text-red-500 text-sm mt-1">{error.message}</p>
                   )}
-                </div>
-              </>
-            )}
+                  </div>
+
+                  {/* Send OTP Button - At the end of registration form */}
+                  {!otpSent && (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={handleSendOTP}
+                        disabled={sendingOTP || !formData.email || !formData.email.trim()}
+                        className="w-full px-4 py-2 bg-accent text-brown font-semibold rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {sendingOTP ? "Sending OTP..." : "Send OTP"}
+                      </button>
+                      {!formData.email && (
+                        <p className="text-sm text-gray-500 mt-1">Please fill in all details above and click Send OTP</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* OTP Sent Status */}
+                  {otpSent && !otpVerified && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-700">
+                        ✅ OTP sent to your email! Please check your inbox and enter the OTP above.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
               </>
             )}
 
