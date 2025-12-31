@@ -34,43 +34,18 @@ function App() {
   }, []);
 
   /* ================== Navigation ================== */
-  /* Navigation handled by single handler defined below. */
+  const handleSectionChange = (section) => {
+    if (section !== "Profile") setShowProfile(false);
+    setActiveSection(section);
+    window.history.pushState({ section }, "", `#${section.replace(/\s+/g, "")}`);
+  };
 
-  // Handlers
-  // const handleLogin = (data) => {
-  //   setUserData(data);
-  //   setIsLoggedIn(true);
-  //   setIsLoginModalOpen(false);
-  //   setShowProfile(false);
-  //   setActiveSection('Home');
-  //   try { window.history.pushState({ section: 'Home' }, '', '#Home'); } catch {}
-  // };
   const handleLogin = (data) => {
     setUserData(data);
     setIsLoggedIn(true);
-
-    // ✅ persist login
-    localStorage.setItem('isLoggedIn', 'true');
-    localStorage.setItem('userData', JSON.stringify(data));
-
     setIsLoginModalOpen(false);
-    setShowProfile(false);
-    setActiveSection('Home');
-
-    try {
-      window.history.pushState({ section: 'Home' }, '', '#Home');
-    } catch {}
-  };
-
-  const handleShowProfile = () => {
-    setShowProfile(true);
-    setActiveSection('Profile');
-    try { window.history.pushState({ section: 'Profile' }, '', '#Profile'); } catch {}
-  };
-  const handleBackToHome = () => {
-    setShowProfile(false);
-    setActiveSection('Home');
-    try { window.history.pushState({ section: 'Home' }, '', '#Home'); } catch {}
+    setActiveSection("Home");
+    window.history.pushState({ section: "Home" }, "", "#Home");
   };
 
   const handleLogout = () => {
@@ -78,26 +53,14 @@ function App() {
     setIsLoggedIn(false);
     setUserData(null);
     setShowProfile(false);
-    setActiveSection('Home');
-
-    // ✅ clear persisted data
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('userData');
-
-    try {
-      window.history.pushState({ section: 'Home' }, '', '#Home');
-    } catch {}
+    setActiveSection("Home");
+    window.history.pushState({ section: "Home" }, "", "#Home");
   };
 
-
-  const handleSectionChange = (section) => {
-    // Reset showProfile when navigating to any section other than Profile
-    if (section !== 'Profile') {
-      setShowProfile(false);
-    }
-    setActiveSection(section);
-    // Push into browser history so back/forward works
-    try { window.history.pushState({ section }, '', `#${section.replace(/\s+/g, '')}`); } catch {}
+  const handleShowProfile = () => {
+    setShowProfile(true);
+    setActiveSection("Profile");
+    window.history.pushState({ section: "Profile" }, "", "#Profile");
   };
 
   /* ================== Browser Back / Forward ================== */
@@ -120,16 +83,6 @@ function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [isLoggedIn]);
-  useEffect(() => {
-    const storedLogin = localStorage.getItem('isLoggedIn');
-    const storedUser = localStorage.getItem('userData');
-
-    if (storedLogin === 'true' && storedUser) {
-      setIsLoggedIn(true);
-      setUserData(JSON.parse(storedUser));
-    }
-  }, []);
-
 
   /* ================== Render Content ================== */
   const renderContent = () => {
@@ -200,7 +153,13 @@ function App() {
         );
 
       default:
-        return <Home onSectionChange={handleSectionChange} />;
+        return (
+          <Home
+            isLoggedIn={isLoggedIn}
+            onLoginRequired={() => setIsLoginModalOpen(true)}
+            onSectionChange={handleSectionChange}
+          />
+        );
     }
   };
 
