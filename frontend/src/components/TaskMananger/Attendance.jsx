@@ -1,23 +1,30 @@
 /**
- * Attendify - Attendance Tracking Component (Database Version)
+ * Attendify - Attendance Tracking Component (Fixed)
  */
 
 import React, { useState, useEffect, useCallback } from "react";
 import "./AttendanceTracker.css";
 
-const AttendanceTracker = ({ onBack, userId }) => {
+const Attendance = ({ user }) => {
+  const userId = user?.id || user?.uid || user?._id;
+
+  const API_BASE_URL =
+    import.meta.env.VITE_API_URL || "http://localhost:5001/api";
+
+  /* ---------------- STATE ---------------- */
   const [subjects, setSubjects] = useState([]);
   const [newSubjectName, setNewSubjectName] = useState("");
-  const [selectedDates, setSelectedDates] = useState({});
-  const [sessionsDisplayLimit, setSessionsDisplayLimit] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const API_BASE_URL =
-    import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+  const [targetPercentage, setTargetPercentage] = useState(75);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [markAttendanceFor, setMarkAttendanceFor] = useState(null);
+  const [showHistoryFor, setShowHistoryFor] = useState(null);
+  const [historyFilter, setHistoryFilter] = useState("all");
+  const [historyLimits, setHistoryLimits] = useState({});
 
   /* ---------------- FETCH DATA ---------------- */
-
   const fetchDataFromDB = useCallback(async () => {
     if (!userId) {
       setLoading(false);
@@ -28,257 +35,108 @@ const AttendanceTracker = ({ onBack, userId }) => {
       setLoading(true);
       setError(null);
 
-      const [subjectsRes, attendanceRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/attendance/subjects/list/${userId}`),
-        fetch(`${API_BASE_URL}/attendance/${userId}`),
-      ]);
+      const attendanceRes = await fetch(
+        `${API_BASE_URL}/attendance/${userId}`
+      );
 
-      if (!subjectsRes.ok)
-        throw new Error("Failed to fetch subjects");
-
-      if (!attendanceRes.ok)
+      if (!attendanceRes.ok) {
         throw new Error("Failed to fetch attendance");
+      }
 
-      const subjectNames = await subjectsRes.json();
-      const attendanceData = await attendanceRes.json();
+      const records = await attendanceRes.json();
 
-      const mappedSubjects = (subjectNames || []).map((name) => ({
-        id: `subject_${name}`,
+      const grouped = {};
+      records.forEach((rec) => {
+        if (!grouped[rec.subject]) grouped[rec.subject] = [];
+        grouped[rec.subject].push({
+          id: rec.id,
+          date: rec.date,
+          status: rec.status,
+        });
+      });
+
+      const subjectsData = Object.keys(grouped).map((name) => ({
+        id: `${name}-${userId}`,
         name,
-        showAttendanceForm: false,
-        sessions: (attendanceData || [])
-          .filter((a) => a.subject === name)
-          .map((a) => ({
-            id: a._id || `${a.subject}_${a.date}`,
-            subject: a.subject,
-            date: a.date,
-            status: a.status.includes("present")
-              ? "present"
-              : "absent",
-            isExtra: a.status.startsWith("extra"),
-          }))
-          .sort((a, b) => new Date(b.date) - new Date(a.date)),
+        attendance: grouped[name],
       }));
 
-      setSubjects(mappedSubjects);
+      setSubjects(subjectsData);
     } catch (err) {
-      console.error(err);
-      setError(err.message || "Something went wrong");
+      console.error("Error loading attendance", err);
+      setError("Failed to load attendance");
     } finally {
       setLoading(false);
     }
   }, [userId, API_BASE_URL]);
 
+  /* ---------------- RUN FETCH ---------------- */
   useEffect(() => {
     fetchDataFromDB();
   }, [fetchDataFromDB]);
 
   /* ---------------- HELPERS ---------------- */
-
-  const calculateAttendance = (sessions) => {
-    if (!sessions.length) return 0;
-    const present = sessions.filter((s) => s.status === "present").length;
-    return Math.round((present / sessions.length) * 100);
+  const calculateStats = (attendance) => {
+    const total = attendance.length;
+    const present = attendance.filter(a => a.status === "present").length;
+    const absent = total - present;
+    const percentage = total ? Math.round((present / total) * 100) : 0;
+    return { total, present, absent, percentage };
   };
 
-  /* ---------------- SUBJECTS ---------------- */
-
-  const handleAddSubject = async () => {
-    if (!newSubjectName.trim()) return;
-
-    if (
-      subjects.some(
-        (s) => s.name.toLowerCase() === newSubjectName.toLowerCase()
-      )
-    ) {
-      alert("Subject already exists");
-      return;
+  const getFilteredHistory = (attendance) => {
+    if (historyFilter === "present") {
+      return attendance.filter(a => a.status === "present");
     }
-
-    try {
-      await fetch(`${API_BASE_URL}/attendance/subjects/sync`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          subjects: [...subjects.map((s) => s.name), newSubjectName],
-        }),
-      });
-
-      setNewSubjectName("");
-      fetchDataFromDB();
-    } catch (err) {
-      console.error(err);
+    if (historyFilter === "absent") {
+      return attendance.filter(a => a.status === "absent");
     }
-  };
-
-  /* ---------------- ATTENDANCE ---------------- */
-
-  const handleMarkAttendance = async (subjectId, status, isExtra) => {
-    const subject = subjects.find((s) => s.id === subjectId);
-    if (!subject) return;
-
-    const date =
-      selectedDates[subjectId] ||
-      new Date().toISOString().split("T")[0];
-
-    const dbStatus = isExtra ? `extra-${status}` : status;
-
-    try {
-      await fetch(`${API_BASE_URL}/attendance/mark`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          subject: subject.name,
-          date,
-          status: dbStatus,
-        }),
-      });
-
-      fetchDataFromDB();
-    } catch (err) {
-      console.error(err);
-    }
+    return attendance;
   };
 
   /* ---------------- UI ---------------- */
-
-  if (!userId)
-    return (
-      <p style={{ textAlign: "center" }}>
-        Please login to track attendance
-      </p>
-    );
-
-  if (loading)
-    return <p style={{ textAlign: "center" }}>Loading...</p>;
-
-  if (error)
-    return <p style={{ color: "red", textAlign: "center" }}>{error}</p>;
+  if (!userId) return <p>Please login to view attendance</p>;
+  if (loading) return <p>Loading attendance...</p>;
+  if (error) return <p>{error}</p>;
 
   return (
     <div className="attendance-tracker">
-      <h2>Attendify</h2>
+      <h1>Attendance Tracker</h1>
 
-      <div className="config-panel">
-        <input
-          value={newSubjectName}
-          onChange={(e) => setNewSubjectName(e.target.value)}
-          placeholder="Add Subject"
-        />
-        <button onClick={handleAddSubject}>Add</button>
-      </div>
-
-      <div className="subjects-grid">
-        {subjects.map((subject) => {
-          const percentage = calculateAttendance(subject.sessions);
-
+      {subjects.length === 0 ? (
+        <p>No subjects found.</p>
+      ) : (
+        subjects.map(subject => {
+          const stats = calculateStats(subject.attendance);
           return (
-            <div key={subject.id} className="subject-card">
+            <div key={subject.id} className="subject-container">
               <h3>{subject.name}</h3>
-              <p>Attendance: {percentage}%</p>
+              <p>
+                {stats.percentage}% | Present: {stats.present} | Absent:{" "}
+                {stats.absent} | Total: {stats.total}
+              </p>
 
-              <button
-                onClick={() =>
-                  setSubjects((prev) =>
-                    prev.map((s) =>
-                      s.id === subject.id
-                        ? {
-                            ...s,
-                            showAttendanceForm: !s.showAttendanceForm,
-                          }
-                        : s
-                    )
-                  )
-                }
-              >
-                Mark Attendance
+              <button onClick={() => setShowHistoryFor(
+                showHistoryFor === subject.id ? null : subject.id
+              )}>
+                View History
               </button>
 
-              {subject.showAttendanceForm && (
-                <>
-                  <input
-                    type="date"
-                    value={
-                      selectedDates[subject.id] ||
-                      new Date().toISOString().split("T")[0]
-                    }
-                    onChange={(e) =>
-                      setSelectedDates((p) => ({
-                        ...p,
-                        [subject.id]: e.target.value,
-                      }))
-                    }
-                  />
-
-                  <button
-                    onClick={() =>
-                      handleMarkAttendance(subject.id, "present", false)
-                    }
-                  >
-                    Present
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleMarkAttendance(subject.id, "absent", false)
-                    }
-                  >
-                    Absent
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleMarkAttendance(subject.id, "present", true)
-                    }
-                  >
-                    Extra Present
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleMarkAttendance(subject.id, "absent", true)
-                    }
-                  >
-                    Extra Absent
-                  </button>
-                </>
-              )}
-
-              {subject.sessions.length > 0 && (
-                <div className="sessions-history">
-                  <h4>Sessions</h4>
-
-                  {subject.sessions
-                    .slice(0, sessionsDisplayLimit[subject.id] || 5)
-                    .map((s) => (
-                      <div key={s.id} className="session-row">
-                        <span>{s.date}</span>
-                        <span>{s.status}</span>
-                        {s.isExtra && <span>(Extra)</span>}
-                      </div>
-                    ))}
-
-                  {subject.sessions.length >
-                    (sessionsDisplayLimit[subject.id] || 5) && (
-                    <button
-                      onClick={() =>
-                        setSessionsDisplayLimit((p) => ({
-                          ...p,
-                          [subject.id]:
-                            (p[subject.id] || 5) + 5,
-                        }))
-                      }
-                    >
-                      Show more
-                    </button>
-                  )}
+              {showHistoryFor === subject.id && (
+                <div className="history-list">
+                  {getFilteredHistory(subject.attendance).map((rec) => (
+                    <div key={rec.id}>
+                      {rec.date} — {rec.status}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
           );
-        })}
-      </div>
+        })
+      )}
     </div>
   );
 };
 
-export default AttendanceTracker;
+export default Attendance;

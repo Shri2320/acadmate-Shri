@@ -1,13 +1,12 @@
 {
-  "name": "vite-react-typescript-starter",
-  "private": true,
-  "version": "0.0.0",
+  "name": "acadmate-backend",
+  "version": "1.0.0",
+  "description": "Backend for Acadmate project",
+  "main": "server.js",
   "type": "commonjs",
   "scripts": {
-    "dev": "vite --host",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
@@ -34,7 +33,6 @@
   "devDependencies": {
     "nodemon": "^3.0.2"
   },
-  "keywords": [],
-  "author": "",
+  "author": "Sthuthi",
   "license": "ISC"
 }

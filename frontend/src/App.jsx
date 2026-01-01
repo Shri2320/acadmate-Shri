@@ -182,7 +182,9 @@ function App() {
             isAuthenticated={isLoggedIn}
             onLoginRequired={() => setIsLoginModalOpen(true)}
           >
-            <Task />
+            <Task 
+            user={userData}     // ✅ THIS is what Option A needs
+        onBack={() => handleSectionChange("Home")}/>
           </ProtectedRoute>
         );
 
@@ -202,7 +204,7 @@ function App() {
             isAuthenticated={isLoggedIn}
             onLoginRequired={() => setIsLoginModalOpen(true)}
           >
-            <ChatbotHub />
+            <ChatbotHub userData={userData} />
           </ProtectedRoute>
         );
 
@@ -274,7 +276,7 @@ function App() {
         </Routes>
       </div>
 
-      {activeSection !== "Chatbot" && !location.pathname.startsWith('/discussions') && (
+      {activeSection === "Home" && (
         <Footer onSectionChange={handleSectionChange} />
       )}
 
