@@ -1,444 +1,455 @@
-import React, { useState, useRef, useEffect } from "react";
-import "./ChatbotHub.css";
-import Lottie from "lottie-react";
-import { MessageCircle, X } from "lucide-react";
+/**
+ * Attendify - Attendance Tracking Component (Complete Redesign)
+ */
 
-const ChatbotHub = ({ userData }) => {
-  // Get user's name from userData
-  const getUserName = () => {
-    if (!userData) return null;
-    return userData.displayName || userData.username || userData.name || null;
+import React, { useState, useEffect } from 'react';
+import './AttendanceTracker.css';
+
+const Attendance = ({user}) => {
+  const userId = user?.id || user?.uid || user?._id;
+
+  if (!userId) {
+    return <p>Please login to view attendance</p>;
+  }
+
+  const [subjects, setSubjects] = useState([]);
+  const [targetPercentage, setTargetPercentage] = useState(75);
+  const [newSubjectName, setNewSubjectName] = useState('');
+  const [showHistoryFor, setShowHistoryFor] = useState(null);
+  const [historyFilter, setHistoryFilter] = useState('all'); // 'all', 'present', 'absent'
+  const [markAttendanceFor, setMarkAttendanceFor] = useState(null);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [historyLimits, setHistoryLimits] = useState({}); // Track show more limits per subject
+
+  
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
+  if (!userId) return;
+
+  const fetchAttendance = async () => {
+    try {
+      const res = await fetch(`http://localhost:5001/api/attendance/${userId}`, {
+        credentials: "include",
+      });
+
+      if (!res.ok) return;
+
+      const records = await res.json();
+
+      const grouped = {};
+      records.forEach(rec => {
+        if (!grouped[rec.subject]) grouped[rec.subject] = [];
+        grouped[rec.subject].push({
+          id: rec.id,
+          date: rec.date,
+          status: rec.status,
+        });
+      });
+
+      const subjectsData = Object.keys(grouped).map(name => ({
+        id: `${name}-${userId}`,
+        name,
+        attendance: grouped[name],
+      }));
+
+      setSubjects(subjectsData);
+    } catch (err) {
+      console.error("Error loading attendance", err);
+    }
   };
 
-  const userName = getUserName();
-  const welcomeMessage = userName 
-    ? `Welcome ${userName}`
-    : "Welcome to ExamPrep! Get exam-ready answers ✍️"; 
-  const [activeMode, setActiveMode] = useState("examprep");
-  const [showWelcome, setShowWelcome] = useState(userName ? true : false);
-  const [isWelcomeFading, setIsWelcomeFading] = useState(false);
-  const [messages, setMessages] = useState({
-    examprep: []
-  });
+  fetchAttendance();
+}, [user]);
 
-  const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [selectedMarks, setSelectedMarks] = useState(5);
-  const [showMarksDropdown, setShowMarksDropdown] = useState(false);
 
-  const prevMessagesLengthRef = useRef(0);
-  const isSendingRef = useRef(false);
-  const [examPrepAnimData, setExamPrepAnimData] = useState(null);
-  const [showChatWindow, setShowChatWindow] = useState(false);
-  const [chatInput, setChatInput] = useState("");
-  const chatWindowRef = useRef(null);
-
-  // Measure navbar height at runtime and publish as CSS variable so landing can offset itself
-  useEffect(() => {
-    const setNavHeight = () => {
-      try {
-        const nav = document.querySelector('nav');
-        const h = nav ? nav.offsetHeight : 64;
-        document.documentElement.style.setProperty('--navbar-height', `${h}px`);
-      } catch (e) {
-        // ignore
+  const handleAddSubject = () => {
+    if (newSubjectName.trim()) {
+      const normalized = newSubjectName.trim().toLowerCase();
+      const exists = subjects.some(s => (s.name || '').trim().toLowerCase() === normalized);
+      if (exists) {
+        alert('This subject has already been added.');
+        return;
       }
-    };
-
-    setNavHeight();
-    window.addEventListener('resize', setNavHeight);
-    return () => window.removeEventListener('resize', setNavHeight);
-  }, []);
-
-  // Load ExamPrep animation
-  useEffect(() => {
-    fetch("/animations/examPrep.json")
-      .then((r) => r.json())
-      .then(setExamPrepAnimData)
-      .catch(() => setExamPrepAnimData(null));
-  }, []);
-
-  const sendMessage = () => {
-    const trimmedInput = input.trim();
-    if (!trimmedInput) return;
-    if (isSendingRef.current) return;
-
-    // Hide welcome message when user sends first message
-    if (showWelcome) {
-      setIsWelcomeFading(true);
-      // Remove welcome after fade animation completes
-      setTimeout(() => {
-        setShowWelcome(false);
-        setIsWelcomeFading(false);
-      }, 500); // Match CSS animation duration
+      const newSubject = {
+        id: Date.now().toString(),
+        name: newSubjectName.trim(),
+        attendance: [] // Array of { date, status }
+      };
+      setSubjects([...subjects, newSubject]);
+      setNewSubjectName('');
     }
+  };
+  const handleDeleteAttendance = async (subjectId, recordId) => {
+  try {
+    await fetch(`http://localhost:5001/api/attendance/record/${recordId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
 
-    isSendingRef.current = true;
+    setSubjects(prev =>
+      prev.map(s =>
+        s.id === subjectId
+          ? {
+              ...s,
+              attendance: s.attendance.filter(a => a.id !== recordId),
+            }
+          : s
+      )
+    );
+  } catch (err) {
+    console.error("Delete failed", err);
+  }
+};
 
-    const messageToSend = trimmedInput;
-    const userMessage =
-      activeMode === "examprep"
-        ? `${messageToSend} (${selectedMarks} marks)`
-        : messageToSend;
 
-    setMessages(prev => ({
-      ...prev,
-      [activeMode]: [...prev[activeMode], { type: "user", text: userMessage }]
-    }));
+  const handleRemoveSubject = async (subjectId) => {
+    const subject = subjects.find(s => s.id === subjectId);
+    if (!subject) return;
 
-    setInput("");
-    setShowMarksDropdown(false);
-    setIsTyping(true);
+    if (!window.confirm('Are you sure you want to remove this subject?')) return;
 
-    const payload = {
-      query: messageToSend,   // ✅ FIXED
-      marks: activeMode === "examprep" ? selectedMarks : 5,
-      temperature: 0.3
-    };
+    try {
+      await fetch(
+        `http://localhost:5001/api/attendance/subject/${userId}/${encodeURIComponent(subject.name)}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
 
-    console.log("Sending payload:", payload); // 🔍 Debug
+      setSubjects(prev => prev.filter(s => s.id !== subjectId));
+      if (showHistoryFor === subjectId) setShowHistoryFor(null);
+      if (markAttendanceFor === subjectId) setMarkAttendanceFor(null);
+    } catch (err) {
+      console.error("Subject delete failed", err);
+      alert("Could not delete subject. Please try again.");
+    }
+  };
 
-    fetch("http://127.0.0.1:8000/query", {
+ const handleMarkAttendance = async (subjectId, status) => {
+  if (!selectedDate) {
+    alert("Please select a date");
+    return;
+  }
+
+  const subject = subjects.find(s => s.id === subjectId);
+  if (!subject || !userId) return;
+
+  try {
+    const res = await fetch(`http://localhost:5001/api/attendance/mark`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.detail || "Server error");
-        }
-        return res.json();
+      credentials: "include",
+      body: JSON.stringify({
+  userId: userId,
+  subject: subject.name,
+  date: selectedDate,
+  status,
+  attendance: "regular", // ✅ ADD THIS
+}),
+
+    });
+
+    if (!res.ok) throw new Error("Failed");
+
+    const saved = await res.json();
+
+    setSubjects(subjects.map(s =>
+      s.id === subjectId
+        ? {
+            ...s,
+            attendance: [
+              ...s.attendance,
+              { id: saved.id, date: selectedDate, status }
+            ]
+          }
+        : s
+    ));
+  } catch (err) {
+    alert("Error marking attendance");
+  }
+};
+
+ const handleResetAttendance = async (subjectId) => {
+  if (!selectedDate) return;
+
+  const subject = subjects.find(s => s.id === subjectId);
+  if (!subject) return;
+
+  const toDelete = subject.attendance.filter(a => a.date === selectedDate);
+
+  await Promise.all(
+    toDelete.map(a =>
+      fetch(`http://localhost:5001/api/attendance/record/${a.id}`, {
+        method: "DELETE",
+        credentials: "include",
       })
-      .then((data) => {
-        setMessages(prev => ({
-          ...prev,
-          [activeMode]: [...prev[activeMode], { type: "bot", text: data.answer }]
-        }));
-      })
-      .catch((error) => {
-        setMessages(prev => ({
-          ...prev,
-          [activeMode]: [
-            ...prev[activeMode],
-            { type: "bot", text: `Error: ${error.message}` }
-          ]
-        }));
-      })
-      .finally(() => {
-        setIsTyping(false);
-        isSendingRef.current = false;
-      });
-  };
+    )
+  );
 
-
-  const navigateToMode = (mode) => {
-    setActiveMode(mode);
-    try {
-      const hash = `#Chatbot-${mode}`;
-      window.history.pushState({ section: "Chatbot", chatbotMode: mode }, "", hash);
-    } catch {}
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") sendMessage();
-  };
-
-  useEffect(() => {
-    const currentMessagesLength = (messages[activeMode] || []).length;
-
-    if (currentMessagesLength > prevMessagesLengthRef.current) {
-      // Use browser scroll instead of custom scroller
-      try {
-        window.scrollTo({
-          top: document.documentElement.scrollHeight,
-          behavior: "smooth"
-        });
-      } catch {
-        window.scrollTo(0, document.documentElement.scrollHeight);
-      }
-    }
-
-    prevMessagesLengthRef.current = currentMessagesLength;
-  }, [messages, activeMode]);
-
-  useEffect(() => {
-    // Use browser scroll instead of custom scroller
-    try {
-      window.scrollTo({ top: 0, behavior: 'auto' });
-    } catch {}
-  }, [activeMode]);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showMarksDropdown && !event.target.closest(".marks-selection-container")) {
-        setShowMarksDropdown(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showMarksDropdown]);
-
-  useEffect(() => {
-    const parseHashMode = () => {
-      try {
-        const h = window.location.hash.replace("#", "");
-        if (h.startsWith("Chatbot-")) return h.split("-")[1];
-      } catch {}
-      return null;
-    };
-
-    const initialMode = parseHashMode();
-    if (initialMode) setActiveMode(initialMode);
-
-    window.history.replaceState(
-      { section: "Chatbot" },
-      "",
-      window.location.hash || "#Chatbot-examprep"
-    );
-
-    const onPop = (e) => {
-      const state = e.state || {};
-      if (state.section === "Chatbot") {
-        setActiveMode(state.chatbotMode || "examprep");
-      }
-    };
-
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
-
-
-  const getModeConfig = () => {
-    switch (activeMode) {
-      case "examprep":
-        return {
-          name: "ExamPrep",
-          gradient: "linear-gradient(135deg, #667eea, #5a67f2)",
-          userGradient: "linear-gradient(135deg, #667eea, #5a67f2)"
-        };
-      default:
-        return {
-          name: "🚢 EduBoat",
-          gradient: "linear-gradient(135deg, #4facfe, #00f2fe)",
-          userGradient: "linear-gradient(135deg, #42a5f5, #1e88e5)"
-        };
-    }
-  };
-
-  const modeConfig = getModeConfig();
-  const currentMessages = messages[activeMode] || [];
-
-  const escapeHtml = (str) =>
-    str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-
-  const renderMarkdown = (text) => {
-    if (!text) return "";
-
-    let escaped = escapeHtml(text);
-    escaped = escaped.replace(/`([^`]+)`/g, "<code>$1</code>");
-    escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-    escaped = escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-    escaped = escaped.replace(/\n/g, "<br>");
-
-    return escaped;
-  };
-
-
-  // Chat functionality (frontend only)
-  // const sendChatMessage = () => {
-  //   if (!chatInput.trim() || !isLoggedIn) return;
-    
-  //   const newMessage = {
-  //     id: Date.now(),
-  //     sender: userData?.username || userData?.displayName || "You",
-  //     message: chatInput.trim(),
-  //     timestamp: new Date(),
-  //     isOwn: true
-  //   };
-    
-  //   setChatMessages(prev => [...prev, newMessage]);
-  //   setChatInput("");
-    
-  //   // Simulate receiving a message (frontend only - will be replaced with backend later)
-  //   setTimeout(() => {
-  //     const responseMessage = {
-  //       id: Date.now() + 1,
-  //       sender: "User",
-  //       message: "This is a frontend-only chat. Backend will be added later!",
-  //       timestamp: new Date(),
-  //       isOwn: false
-  //     };
-  //     setChatMessages(prev => [...prev, responseMessage]);
-  //   }, 500);
-  // };
-
-  // useEffect(() => {
-  //   if (showChatWindow && chatWindowRef.current) {
-  //     chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
-  //   }
-  // }, [chatMessages, showChatWindow]);
-
-  return (
-    <div className="chatbot-hub">
-      <header className="chatbot-header">
-        {activeMode === "examprep" && (
-          <div className="examprep-header-left">
-            {examPrepAnimData && (
-              <div className="examprep-animation-small">
-                <Lottie animationData={examPrepAnimData} loop autoplay style={{ width: '100%', height: '100%' }} />
-              </div>
-            )}
-            <h1 className="examprep-title-small">{modeConfig.name}</h1>
-          </div>
-        )}
-        {activeMode !== "examprep" && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
-            <h1>{modeConfig.name}</h1>
-          </div>
-        )}
-        {activeMode !== "examprep" && (
-          <p className="chatbot-subtitle">
-            Ask your question
-          </p>
-        )}
-      </header>
-
-      {/* Chat Window */}
-      {showChatWindow && isLoggedIn && (
-        <div className="chat-window">
-          <div className="chat-window-header">
-            <h3>Community Chat</h3>
-            <button 
-              onClick={() => setShowChatWindow(false)}
-              className="close-chat-btn"
-            >
-              <X size={20} />
-            </button>
-          </div>
-          <div ref={chatWindowRef} className="chat-messages-container">
-            {chatMessages.length === 0 ? (
-              <div className="chat-empty-state">
-                <p>No messages yet. Start a conversation!</p>
-              </div>
-            ) : (
-              chatMessages.map((msg) => (
-                <div key={msg.id} className={`chat-message ${msg.isOwn ? 'own' : 'other'}`}>
-                  <div className="chat-message-header">
-                    <span className="chat-sender">{msg.sender}</span>
-                    <span className="chat-time">
-                      {new Date(msg.timestamp).toLocaleTimeString('en-US', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
-                    </span>
-                  </div>
-                  <div className="chat-message-content">{msg.message}</div>
-                </div>
-              ))
-            )}
-          </div>
-          <div className="chat-input-area">
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
-              placeholder="Type a message..."
-              className="chat-input"
-            />
-            <button onClick={sendChatMessage} className="chat-send-btn">
-              Send
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="chatbox">
-        <div className="messages-container">
-          {showWelcome && (
-            <div className={`welcome-text ${isWelcomeFading ? 'fading-out' : ''}`}>
-              {welcomeMessage}
-            </div>
-          )}
-          
-          {currentMessages.map((msg, index) => (
-            <div key={index} className={`message ${msg.type}`}>
-              {msg.type === "bot" ? (
-                <div
-                  className="bot-content"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
-                />
-              ) : (
-                msg.text
-              )}
-            </div>
-          ))}
-
-          {isTyping && (
-            <div className="typing-indicator">
-              <span>Bot is typing</span>
-              <div className="typing-dots">
-                <span className="dot"></span>
-                <span className="dot"></span>
-                <span className="dot"></span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="input-area">
-          {activeMode === "examprep" && (
-            <div className="marks-selection-container">
-              <button
-                className="marks-button"
-                onClick={() => setShowMarksDropdown(!showMarksDropdown)}
-              >
-                {selectedMarks} marks
-              </button>
-
-              {showMarksDropdown && (
-                <div className="marks-dropdown">
-                  {[2, 3, 4, 5, 6, 7, 8, 10].map((m) => (
-                    <button
-                      key={m}
-                      className={`marks-option ${selectedMarks === m ? "selected" : ""}`}
-                      onClick={() => {
-                        setSelectedMarks(m);
-                        setShowMarksDropdown(false);
-                      }}
-                    >
-                      {m} marks
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          
-          <input
-            type="text"
-            className="message-input"
-            placeholder="Type your question..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyPress}
-          />
-
-          <button onClick={sendMessage} className="send-button-circle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="19" x2="12" y2="5"></line>
-              <polyline points="5 12 12 5 19 12"></polyline>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
+  setSubjects(prev =>
+    prev.map(s =>
+      s.id === subjectId
+        ? { ...s, attendance: s.attendance.filter(a => a.date !== selectedDate) }
+        : s
+    )
   );
 };
 
-export default ChatbotHub;
+
+  const calculateStats = (attendance) => {
+    const total = attendance.length;
+    const present = attendance.filter(a => a.status === 'present').length;
+    const absent = total - present;
+    const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
+    
+    return { total, present, absent, percentage };
+  };
+
+  const getFilteredHistory = (attendance) => {
+    if (historyFilter === 'present') {
+      return attendance.filter(a => a.status === 'present');
+    } else if (historyFilter === 'absent') {
+      return attendance.filter(a => a.status === 'absent');
+    }
+    return attendance;
+  };
+
+  const getDateStatus = (subjectId, date) => {
+    const subject = subjects.find(s => s.id === subjectId);
+    if (!subject) return null;
+    const records = subject.attendance.filter(a => a.date === date);
+    if (records.length === 0) return null;
+    
+    const presentCount = records.filter(r => r.status === 'present').length;
+    const absentCount = records.filter(r => r.status === 'absent').length;
+    
+    return { presentCount, absentCount, total: records.length };
+  };
+
+  return (
+    <div className="attendance-tracker">
+      {/* Header Section */}
+      <div className="header-section">
+        <div className="title-row">
+          <img src="/attend.jpg" alt="Attendance" className="tracker-logo" />
+          <h1 className="page-title">Attendance Tracker</h1>
+        </div>
+        
+        {/* Target Attendance & Add Subject Row */}
+        <div className="target-add-row">
+          <div className="target-input-container">
+            <label>Target Attendance:</label>
+            <input
+              type="number"
+              value={targetPercentage}
+              onChange={(e) => setTargetPercentage(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+              min="0"
+              max="100"
+              className="target-input"
+            />
+            <span className="percentage-symbol">%</span>
+          </div>
+          
+          {/* Subject Percentages Display */}
+          {subjects.length > 0 && (
+            <div className="subjects-percentages">
+              {subjects.map(subject => {
+                const stats = calculateStats(subject.attendance);
+                const isAbove = stats.percentage >= targetPercentage;
+                return (
+                  <div key={subject.id} className={`subject-percent-badge ${isAbove ? 'above' : 'below'}`}>
+                    <span className="subject-percent-name">{subject.name}:</span>
+                    <span className="subject-percent-value">{stats.percentage}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        
+        {/* Add Subject Row */}
+        <div className="add-subject-container">
+          <input
+            type="text"
+            value={newSubjectName}
+            onChange={(e) => setNewSubjectName(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleAddSubject()}
+            placeholder="Add new subject"
+            className="subject-input"
+          />
+          <button onClick={handleAddSubject} className="add-btn">
+            + Add
+          </button>
+        </div>
+      </div>
+
+      {/* Subjects List */}
+      <div className="subjects-list">
+        {subjects.length === 0 ? (
+          <div className="empty-state">
+            <p>No subjects added yet. Start by adding your first subject above!</p>
+          </div>
+        ) : (
+          subjects.map(subject => {
+            const stats = calculateStats(subject.attendance);
+            const isAboveTarget = stats.percentage >= targetPercentage;
+            
+            return (
+              <div key={subject.id} className="subject-container">
+                <div className="subject-header">
+                  <h3 className="subject-name">{subject.name}</h3>
+                </div>
+                
+                <div className="subject-stats-row">
+                  <span className={`subject-inline-stats ${isAboveTarget ? 'above' : 'below'}`}>
+                    {stats.percentage}% | Present: {stats.present} | Absent: {stats.absent} | Total: {stats.total}
+                  </span>
+                </div>
+
+                <div className="subject-actions">
+                  <button
+                    onClick={() => {
+                      setMarkAttendanceFor(markAttendanceFor === subject.id ? null : subject.id);
+                      setShowHistoryFor(null);
+                    }}
+                    className="mark-attendance-btn"
+                  >
+                    Mark Attendance
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowHistoryFor(showHistoryFor === subject.id ? null : subject.id);
+                      setMarkAttendanceFor(null);
+                    }}
+                    className="view-history-btn"
+                  >
+                    {showHistoryFor === subject.id ? 'Hide History' : 'View History'}
+                  </button>
+                  <button
+                    onClick={() => handleRemoveSubject(subject.id)}
+                    className="remove-subject-btn"
+                  >
+                    Remove
+                  </button>
+                </div>
+
+                {/* Mark Attendance Section */}
+                {markAttendanceFor === subject.id && (
+                  <div className="mark-attendance-section">
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      max={new Date().toISOString().split('T')[0]}
+                      className="date-input"
+                    />
+                    
+                    {selectedDate && (
+                      <div className="attendance-buttons-inline">
+                        <button
+                          onClick={() => handleMarkAttendance(subject.id, 'present')}
+                          className="present-btn-small"
+                        >
+                          ✓ Present
+                        </button>
+                        <button
+                          onClick={() => handleMarkAttendance(subject.id, 'absent')}
+                          className="absent-btn-small"
+                        >
+                          ✗ Absent
+                        </button>
+                        <button
+                          onClick={() => handleResetAttendance(subject.id)}
+                          className="reset-btn-small"
+                        >
+                          ↻ Reset
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* History Section */}
+                {showHistoryFor === subject.id && (
+                  <div className="history-overlay">
+                    <div className="history-section">
+                      <div className="history-header">
+                        <h4>Attendance History</h4>
+                        <div className="history-filters">
+                          <button
+                            onClick={() => setHistoryFilter('all')}
+                            className={`filter-btn ${historyFilter === 'all' ? 'active' : ''}`}
+                          >
+                            All
+                          </button>
+                          <button
+                            onClick={() => setHistoryFilter('present')}
+                            className={`filter-btn ${historyFilter === 'present' ? 'active' : ''}`}
+                          >
+                            Present Only
+                          </button>
+                          <button
+                            onClick={() => setHistoryFilter('absent')}
+                            className={`filter-btn ${historyFilter === 'absent' ? 'active' : ''}`}
+                          >
+                            Absent Only
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="history-list">
+                        {getFilteredHistory(subject.attendance).length === 0 ? (
+                          <p className="no-history">No attendance records found.</p>
+                        ) : (
+                          <>
+                            {getFilteredHistory(subject.attendance)
+                              .slice(0, historyLimits[subject.id] || 5)
+                              .map((record, index) => (
+                                <div key={record.id || index} className="history-item">
+                                  <span className={`history-dot ${record.status === 'present' ? 'green' : 'red'}`}></span>
+                                  <span className="history-date">{record.date}</span>
+                                </div>
+                              ))}
+                            
+                            {getFilteredHistory(subject.attendance).length > (historyLimits[subject.id] || 5) && (
+                              <div className="show-more-controls">
+                                <span className="show-more-label">Show:</span>
+                                {[5, 10, 25, 50, 75, 100].map(limit => (
+                                  <button
+                                    key={limit}
+                                    onClick={() => setHistoryLimits({...historyLimits, [subject.id]: limit})}
+                                    className={`show-more-btn ${(historyLimits[subject.id] || 5) === limit ? 'active' : ''}`}
+                                  >
+                                    {limit}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      
+                      <button 
+                        onClick={() => setShowHistoryFor(null)}
+                        className="history-close-btn"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default Attendance;
