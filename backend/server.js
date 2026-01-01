@@ -1,4 +1,6 @@
-// server.js
+/* ================================
+   Imports & Config
+================================ */
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -28,14 +30,17 @@ const app = express();
 ================================ */
 app.use(helmet());
 
+// Updated CORS: allows any localhost port + production CLIENT_URL
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:3000",
-      process.env.CLIENT_URL,
-    ],
+    origin: (origin, callback) => {
+      if (!origin || origin.startsWith("http://localhost") || origin === process.env.CLIENT_URL) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
@@ -61,25 +66,20 @@ const authLimiter = rateLimit({
 app.use("/api", apiLimiter);
 
 /* ================================
-   Existing Routes
+   Routes
 ================================ */
 const authRoutes = require("./routes/authRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 const reminderRoutes = require("./routes/reminderRoutes");
 const attendanceRoutes = require("./routes/attendance");
+const discussionsRouter = require("./routes/discussions");
+const commentsRouter = require("./routes/comments");
+const uploadRouter = require("./routes/upload");
 
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/reminder", reminderRoutes);
 app.use("/api/attendance", attendanceRoutes);
-
-/* ================================
-   Discussion System Routes
-================================ */
-const discussionsRouter = require("./routes/discussions");
-const commentsRouter = require("./routes/comments");
-const uploadRouter = require("./routes/upload");
-
 app.use("/api/discussions", discussionsRouter);
 app.use("/api/comments", commentsRouter);
 app.use("/api/upload", uploadRouter);

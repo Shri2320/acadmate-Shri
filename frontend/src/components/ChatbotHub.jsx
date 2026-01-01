@@ -2,10 +2,23 @@ import React, { useState, useRef, useEffect } from "react";
 import "./ChatbotHub.css";
 import Lottie from "lottie-react";
 
-const ChatbotHub = () => {
+const ChatbotHub = ({ userData }) => {
+  // Get user's name from userData
+  const getUserName = () => {
+    if (!userData) return null;
+    return userData.displayName || userData.username || userData.name || null;
+  };
+
+  const userName = getUserName();
+  const welcomeMessage = userName 
+    ? `Welcome ${userName}`
+    : "Welcome to ExamPrep! Get exam-ready answers ✍️";
+
   const [activeMode, setActiveMode] = useState("examprep");
+  const [showWelcome, setShowWelcome] = useState(userName ? true : false);
+  const [isWelcomeFading, setIsWelcomeFading] = useState(false);
   const [messages, setMessages] = useState({
-    examprep: [{ type: "bot", text: "Welcome to ExamPrep! Get exam-ready answers ✍️" }]
+    examprep: []
   });
 
   const [input, setInput] = useState("");
@@ -13,7 +26,6 @@ const ChatbotHub = () => {
   const [selectedMarks, setSelectedMarks] = useState(5);
   const [showMarksDropdown, setShowMarksDropdown] = useState(false);
 
-  const chatboxRef = useRef(null);
   const prevMessagesLengthRef = useRef(0);
   const isSendingRef = useRef(false);
   const [examPrepAnimData, setExamPrepAnimData] = useState(null);
@@ -47,6 +59,16 @@ const ChatbotHub = () => {
     const trimmedInput = input.trim();
     if (!trimmedInput) return;
     if (isSendingRef.current) return;
+
+    // Hide welcome message when user sends first message
+    if (showWelcome) {
+      setIsWelcomeFading(true);
+      // Remove welcome after fade animation completes
+      setTimeout(() => {
+        setShowWelcome(false);
+        setIsWelcomeFading(false);
+      }, 500); // Match CSS animation duration
+    }
 
     isSendingRef.current = true;
 
@@ -122,14 +144,15 @@ const ChatbotHub = () => {
   useEffect(() => {
     const currentMessagesLength = (messages[activeMode] || []).length;
 
-    if (chatboxRef.current && currentMessagesLength > prevMessagesLengthRef.current) {
+    if (currentMessagesLength > prevMessagesLengthRef.current) {
+      // Use browser scroll instead of custom scroller
       try {
-        chatboxRef.current.scrollTo({
-          top: chatboxRef.current.scrollHeight,
+        window.scrollTo({
+          top: document.documentElement.scrollHeight,
           behavior: "smooth"
         });
       } catch {
-        chatboxRef.current.scrollTop = chatboxRef.current.scrollHeight;
+        window.scrollTo(0, document.documentElement.scrollHeight);
       }
     }
 
@@ -137,14 +160,7 @@ const ChatbotHub = () => {
   }, [messages, activeMode]);
 
   useEffect(() => {
-    if (chatboxRef.current) {
-      try {
-        chatboxRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-      } catch {
-        chatboxRef.current.scrollTop = 0;
-      }
-    }
-
+    // Use browser scroll instead of custom scroller
     try {
       window.scrollTo({ top: 0, behavior: 'auto' });
     } catch {}
@@ -233,21 +249,36 @@ const ChatbotHub = () => {
   return (
     <div className="chatbot-hub">
       <header className="chatbot-header">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
-          {activeMode === "examprep" && examPrepAnimData && (
-            <div style={{ width: '100px', height: '100px' }}>
-              <Lottie animationData={examPrepAnimData} loop autoplay style={{ width: '100%', height: '100%' }} />
-            </div>
-          )}
-          <h1>{modeConfig.name}</h1>
-        </div>
-        <p className="chatbot-subtitle">
-          {activeMode === "examprep" ? "Structured answers and strategies for exam success" : "Ask your question"}
-        </p>
+        {activeMode === "examprep" && (
+          <div className="examprep-header-left">
+            {examPrepAnimData && (
+              <div className="examprep-animation-small">
+                <Lottie animationData={examPrepAnimData} loop autoplay style={{ width: '100%', height: '100%' }} />
+              </div>
+            )}
+            <h1 className="examprep-title-small">{modeConfig.name}</h1>
+          </div>
+        )}
+        {activeMode !== "examprep" && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+            <h1>{modeConfig.name}</h1>
+          </div>
+        )}
+        {activeMode !== "examprep" && (
+          <p className="chatbot-subtitle">
+            Ask your question
+          </p>
+        )}
       </header>
 
       <div className="chatbox">
-        <div ref={chatboxRef} className="messages-container">
+        <div className="messages-container">
+          {showWelcome && (
+            <div className={`welcome-text ${isWelcomeFading ? 'fading-out' : ''}`}>
+              {welcomeMessage}
+            </div>
+          )}
+          
           {currentMessages.map((msg, index) => (
             <div key={index} className={`message ${msg.type}`}>
               {msg.type === "bot" ? (
@@ -274,15 +305,6 @@ const ChatbotHub = () => {
         </div>
 
         <div className="input-area">
-          <input
-            type="text"
-            className="message-input"
-            placeholder="Type your question..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyPress}
-          />
-
           {activeMode === "examprep" && (
             <div className="marks-selection-container">
               <button
@@ -310,8 +332,22 @@ const ChatbotHub = () => {
               )}
             </div>
           )}
+          
+          <input
+            type="text"
+            className="message-input"
+            placeholder="Type your question..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyPress}
+          />
 
-          <button onClick={sendMessage} className="send-button">Send</button>
+          <button onClick={sendMessage} className="send-button-circle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="19" x2="12" y2="5"></line>
+              <polyline points="5 12 12 5 19 12"></polyline>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
