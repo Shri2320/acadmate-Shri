@@ -1,8 +1,10 @@
-﻿import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { discussionAPI } from "../../services/discussionAPI";
-import CommentSection from "./CommentSection";
-import "./DiscussionDetail.css";
+// components/discussion/DiscussionDetail.jsx
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { discussionAPI } from '../../services/discussionAPI';
+import CommentSection from './CommentSection';
+import FileViewer from './FileViewer';
+import './DiscussionDetail.css';
 
 const DiscussionDetail = ({ isLoggedIn, userData }) => {
   const [discussion, setDiscussion] = useState(null);
@@ -10,8 +12,10 @@ const DiscussionDetail = ({ isLoggedIn, userData }) => {
   const [error, setError] = useState(null);
   const [voting, setVoting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [fileViewerOpen, setFileViewerOpen] = useState(false);
+  const [fileViewerIndex, setFileViewerIndex] = useState(0);
   const [hasVoted, setHasVoted] = useState(false);
-
+  
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -81,21 +85,77 @@ const DiscussionDetail = ({ isLoggedIn, userData }) => {
     (userData.uid === discussion?.author?.uid ||
       userData.role === "admin");
 
-  const formatDate = date =>
-    new Date(date).toLocaleString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+  const formatDate = (date) => {
+    if (!date) return 'Unknown date';
+    
+    const d = date.toDate ? date.toDate() : new Date(date);
+    
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
+  };
 
-  if (loading) {
-    return <div className="loading">Loading discussion...</div>;
+  const getFileIcon = (url) => {
+    if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return '🖼️';
+    if (url.match(/\.pdf$/i)) return '📄';
+    return '📎';
+  };
+
+  const renderFilePreview = (url, index) => {
+    const isImage = url.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+    const filename = url.split('/').pop();
+
+    if (isImage) {
+      return (
+        <div key={index} className="file-preview image-preview">
+          <img src={url} alt={`Attachment ${index + 1}`} />
+          <a href={url} target="_blank" rel="noopener noreferrer" className="view-full">
+            View Full Size
+          </a>
+        </div>
+      );
+    }
+
+    return (
+      <a
+        key={index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="file-attachment"
+      >
+        <span className="file-icon">{getFileIcon(url)}</span>
+        <span className="file-name">{decodeURIComponent(filename)}</span>
+      </a>
+    );
+  };
+
+   if (loading) {
+    return (
+      <div className="discussion-detail-container">
+        <div className="loading-state">
+          <div className="spinner"></div>
+          <p>Loading discussion...</p>
+        </div>
+      </div>
+    );
   }
 
   if (error || !discussion) {
-    return <div className="error">Discussion not found</div>;
+    return (
+      <div className="discussion-detail-container">
+        <div className="error-state">
+          <h2>⚠️ {error || 'Discussion not found'}</h2>
+          <button onClick={() => navigate('/discussions')} className="back-btn">
+            ← Back to Discussions
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -170,6 +230,15 @@ const DiscussionDetail = ({ isLoggedIn, userData }) => {
         userData={userData}
         onCommentAdded={fetchDiscussion}
       />
+
+      {/* File Viewer Modal */}
+      {fileViewerOpen && discussion?.fileUrls && discussion.fileUrls.length > 0 && (
+        <FileViewer
+          files={discussion.fileUrls}
+          initialIndex={fileViewerIndex}
+          onClose={() => setFileViewerOpen(false)}
+        />
+      )}
     </div>
   );
 };
