@@ -13,31 +13,28 @@ const Attendance = ({user}) => {
   }
 
   const [subjects, setSubjects] = useState([]);
-  const [newSubjectName, setNewSubjectName] = useState("");
-  const [selectedDates, setSelectedDates] = useState({});
-  const [sessionsDisplayLimit, setSessionsDisplayLimit] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [targetPercentage, setTargetPercentage] = useState(75);
+  const [newSubjectName, setNewSubjectName] = useState('');
+  const [showHistoryFor, setShowHistoryFor] = useState(null);
+  const [historyFilter, setHistoryFilter] = useState('all'); // 'all', 'present', 'absent'
+  const [markAttendanceFor, setMarkAttendanceFor] = useState(null);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [historyLimits, setHistoryLimits] = useState({}); // Track show more limits per subject
 
-  const API_BASE_URL =
-    import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+  
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
-  /* ---------------- FETCH DATA ---------------- */
+  useEffect(() => {
+  if (!userId) return;
 
-  const fetchDataFromDB = useCallback(async () => {
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
-
+  const fetchAttendance = async () => {
     try {
-      setLoading(true);
-      setError(null);
-
-      const [subjectsRes, attendanceRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/attendance/subjects/list/${userId}`),
-        fetch(`${API_BASE_URL}/attendance/${userId}`),
-      ]);
+      const res = await fetch(`http://localhost:5001/api/attendance/${userId}`, {
+        credentials: "include",
+      });
 
       if (!res.ok) return;
 
