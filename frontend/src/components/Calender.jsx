@@ -5,7 +5,12 @@ import './Calendar.css'
 const Calendar = ({ onBack }) => {
   const [events, setEvents] = useState([])
   const [user, setUser] = useState(null)
-  const [newEvent, setNewEvent] = useState({ title: '', date: '', type: 'event' })
+  const [newEvent, setNewEvent] = useState({ 
+    title: '', 
+    date: '', 
+    type: 'event',
+    reminderFrequency: 'daily' // New field for reminder frequency
+  })
   const [notification, setNotification] = useState('')
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [loading, setLoading] = useState(false)
@@ -98,19 +103,20 @@ const Calendar = ({ onBack }) => {
     setLoading(true);
     
     try {
-      // Updated endpoint: /add instead of /
       const response = await axios.post(`${API_URL}/add`, {
         userId: user.id,
         email: user.email,
         title: newEvent.title,
         date: newEvent.date,
         type: newEvent.type,
+        reminderFrequency: newEvent.reminderFrequency, // Include reminder frequency
       });
 
-      // Add the new event to state
       setEvents(prev => [...prev, response.data]);
-      setNewEvent({ title: '', date: '', type: 'event' });
-      setNotification('✅ Event added successfully! You will receive daily reminders.');
+      setNewEvent({ title: '', date: '', type: 'event', reminderFrequency: 'daily' });
+      
+      const frequencyText = newEvent.reminderFrequency === 'daily' ? 'daily' : 'weekly';
+      setNotification(`✅ Event added! You will receive ${frequencyText} reminders.`);
       setTimeout(() => setNotification(''), 3000);
     } catch (err) {
       console.error('Failed to add event:', err);
@@ -226,6 +232,20 @@ const Calendar = ({ onBack }) => {
               </select>
             </div>
             
+            <div className="input-group">
+              <label htmlFor="reminder-frequency">Reminder Frequency</label>
+              <select 
+                id="reminder-frequency" 
+                value={newEvent.reminderFrequency} 
+                onChange={(e)=>setNewEvent({...newEvent,reminderFrequency:e.target.value})} 
+                className="form-input"
+                disabled={loading}
+              >
+                <option value="daily">Daily Reminders</option>
+                <option value="weekly">Weekly Reminders</option>
+              </select>
+            </div>
+            
             <button 
               onClick={addEvent} 
               className="btn btn-add"
@@ -234,6 +254,9 @@ const Calendar = ({ onBack }) => {
               {loading ? 'Adding...' : 'Add Event'}
             </button>
           </div>
+          <p style={{fontSize: '12px', color: '#666', marginTop: '10px'}}>
+            💡 Tip: Events within 7 days automatically get daily reminders regardless of your selection
+          </p>
         </div>
       </div>
 
@@ -267,6 +290,7 @@ const Calendar = ({ onBack }) => {
                 {day.events.map(event=>(
                   <div key={event.id} className={`event-item ${event.type}`}>
                     {event.title}
+                    {event.reminderFrequency === 'weekly' && <span style={{fontSize: '10px'}}> 📅</span>}
                   </div>
                 ))}
               </>}
@@ -283,25 +307,60 @@ const Calendar = ({ onBack }) => {
             .filter(event=>new Date(event.date + "T00:00:00")>=new Date())
             .sort((a,b)=>new Date(a.date)-new Date(b.date))
             .slice(0,6)
-            .map(event=>(
-              <div key={event.id} className={`event-card ${event.type}`}>
-                <div className="event-info-row">
-                  <strong className="event-title">{event.title}</strong>
-                  <span className="event-date-badge">
-                    {new Date(event.date + "T00:00:00").toLocaleDateString()}
-                  </span>
-                  <span className="event-type-badge">{event.type}</span>
+            .map(event=>{
+              const today = new Date();
+              today.setHours(0,0,0,0);
+              const eventDate = new Date(event.date + "T00:00:00");
+              const daysUntil = Math.ceil((eventDate - today) / (1000*60*60*24));
+              const isNear = daysUntil <= 7;
+              
+              return (
+                <div key={event.id} className={`event-card ${event.type}`} style={{position: 'relative', padding: '15px', borderRadius: '10px'}}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px'}}>
+                    <div style={{flex: 1}}>
+                      <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px'}}>
+                        <span className="event-type-badge" style={{fontSize: '11px', padding: '3px 10px', borderRadius: '12px'}}>{event.type}</span>
+                        <strong className="event-title" style={{fontSize: '16px', color: '#2d3748'}}>{event.title}</strong>
+                      </div>
+                      <div style={{display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px'}}>
+                        <span style={{fontSize: '14px'}}>📅</span>
+                        <span className="event-date-badge" style={{fontSize: '13px', color: '#4a5568'}}>
+                          {new Date(event.date + "T00:00:00").toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}
+                        </span>
+                      </div>
+                      <div style={{display: 'flex', alignItems: 'center', gap: '6px'}}>
+                        {isNear ? (
+                          <>
+                            <span style={{fontSize: '14px'}}>🔔</span>
+                            <span style={{fontSize: '12px', color: '#e53e3e', fontWeight: '600'}}>
+                              Daily reminders (Near event)
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{fontSize: '14px'}}>📬</span>
+                            <span style={{fontSize: '12px', color: '#718096'}}>
+                              {event.reminderFrequency === 'daily' ? 'Daily' : 'Weekly'} reminders
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <button 
+                      className="event-delete-btn"
+                      onClick={() => deleteEvent(event.id)}
+                      title="Delete event"
+                      disabled={loading}
+                      style={{background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', padding: '5px', opacity: 0.6, transition: 'opacity 0.2s'}}
+                      onMouseEnter={(e) => e.target.style.opacity = 1}
+                      onMouseLeave={(e) => e.target.style.opacity = 0.6}
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
-                <button 
-                  className="event-delete-btn"
-                  onClick={() => deleteEvent(event.id)}
-                  title="Delete event"
-                  disabled={loading}
-                >
-                  🗑️
-                </button>
-              </div>
-            ))
+              );
+            })
           }
         </div>
         {events.filter(event=>new Date(event.date + "T00:00:00")>=new Date()).length === 0 && (
