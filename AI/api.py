@@ -65,11 +65,15 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or ["http://localhost:3000"]
+    allow_origins=[
+        "https://acadmate-7z8f.onrender.com",
+        "http://localhost:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 # Request/Response models
 class QueryRequest(BaseModel):
     query: str = Field(..., description="Search query", min_length=1)
