@@ -170,26 +170,6 @@ const createEmailHTML = (type, data) => {
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    .cta-section {
-      text-align: center;
-      margin: 40px 0;
-    }
-    .cta-button {
-      display: inline-block;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: #ffffff;
-      padding: 16px 40px;
-      text-decoration: none;
-      border-radius: 30px;
-      font-weight: 600;
-      font-size: 16px;
-      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-      transition: all 0.3s ease;
-    }
-    .cta-button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
-    }
     .footer { 
       background: linear-gradient(180deg, #f7fafc 0%, #edf2f7 100%);
       padding: 40px;
@@ -207,17 +187,6 @@ const createEmailHTML = (type, data) => {
       font-size: 14px;
       margin: 8px 0;
       line-height: 1.6;
-    }
-    .footer-links {
-      margin-top: 20px;
-      padding-top: 20px;
-      border-top: 1px solid #e2e8f0;
-    }
-    .footer-link {
-      color: #667eea;
-      text-decoration: none;
-      margin: 0 10px;
-      font-size: 13px;
     }
     .urgent { 
       background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
@@ -277,7 +246,7 @@ const createEmailHTML = (type, data) => {
               <div class="content">
                 <div class="greeting">Hello ${userName || 'there'}! 👋</div>
                 
-                <p class="message">Great news! Your event has been successfully added to <strong>EventBuddy</strong>. We'll make sure you never miss it with our daily reminder system.</p>
+                <p class="message">Great news! Your event has been successfully added to <strong>EventBuddy</strong>. We'll send you reminders to keep you on track!</p>
                 
                 <div class="event-card">
                   <h2 class="event-title">${title}</h2>
@@ -291,8 +260,11 @@ const createEmailHTML = (type, data) => {
                 </div>
 
                 <div class="highlight-box">
-                  <p class="message" style="margin: 0;"><strong>📬 Daily Reminders Activated</strong><br>
-                  You'll receive personalized reminders every day leading up to your event. Stay organized effortlessly!</p>
+                  <p class="message" style="margin: 0;"><strong>📬 Reminder Settings</strong><br>
+                  ${data.reminderFrequency === 'daily' 
+                    ? 'You will receive daily reminders until your event.'
+                    : 'You will receive weekly reminders. When your event is within 7 days, reminders will automatically become daily!'}
+                  </p>
                 </div>
 
                 <div class="divider"></div>
@@ -304,10 +276,6 @@ const createEmailHTML = (type, data) => {
               <div class="footer">
                 <div class="footer-logo">EventBuddy</div>
                 <p>Your Personal Event Management System</p>
-                <p style="font-size: 12px; color: #a0aec0; margin-top: 15px;">
-                  You're receiving this because you added an event in EventBuddy.<br>
-                  Keep track of your important dates with ease!
-                </p>
               </div>
             </div>
           </div>
@@ -375,9 +343,6 @@ const createEmailHTML = (type, data) => {
               <div class="footer">
                 <div class="footer-logo">EventBuddy</div>
                 <p>Wishing you all the best today!</p>
-                <p style="font-size: 12px; color: #a0aec0; margin-top: 15px;">
-                  Good luck with your event! 🍀
-                </p>
               </div>
             </div>
           </div>
@@ -416,7 +381,7 @@ const createEmailHTML = (type, data) => {
               <div class="content">
                 <div class="greeting">Hello ${userName || 'there'}! 👋</div>
                 
-                <p class="message">This is your friendly reminder about an upcoming event. Make sure you're prepared and ready!</p>
+                <p class="message">This is your reminder about an upcoming event. Make sure you're prepared and ready!</p>
                 
                 <div class="event-card ${isUrgent ? 'urgent' : ''}">
                   <h2 class="event-title">${title}</h2>
@@ -441,22 +406,22 @@ const createEmailHTML = (type, data) => {
                 <div class="highlight-box">
                   <p class="message" style="margin: 0; text-align: center;">
                     <strong>${motivationalMessage}</strong>
+                    ${daysUntil <= 7 ? '<br><br>💡 You\'re now receiving daily reminders as your event approaches!' : ''}
                   </p>
                 </div>
 
                 <div class="divider"></div>
 
                 <p class="message" style="text-align: center; color: #4a5568;">
-                  We'll continue to remind you daily until your event. Stay focused and prepared! 🎯
+                  ${daysUntil <= 7 
+                    ? 'Daily reminders will continue until your event. Stay focused! 🎯'
+                    : 'We\'ll keep reminding you as per your schedule. Stay prepared! 🎯'
+                  }
                 </p>
               </div>
               <div class="footer">
                 <div class="footer-logo">EventBuddy</div>
                 <p>Your Personal Event Management System</p>
-                <p style="font-size: 12px; color: #a0aec0; margin-top: 15px;">
-                  Daily reminders will continue until your event date.<br>
-                  You've got ${daysUntil} day${daysUntil > 1 ? 's' : ''} to prepare!
-                </p>
               </div>
             </div>
           </div>
@@ -534,7 +499,7 @@ const addReminder = async (req, res) => {
   console.log("➕ addReminder called");
 
   try {
-    const { userId, email, title, date, type, userName } = req.body;
+    const { userId, email, title, date, type, userName, reminderFrequency } = req.body;
 
     if (!userId || !email || !title || !date) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -557,6 +522,7 @@ const addReminder = async (req, res) => {
       title,
       date,
       type: type || "event",
+      reminderFrequency: reminderFrequency || "daily", // Store user's preference
       createdAt: new Date().toISOString(),
       lastReminderSent: null,
     });
@@ -569,7 +535,8 @@ const addReminder = async (req, res) => {
       title,
       date,
       type: type || 'event',
-      userName: userName || 'there'
+      userName: userName || 'there',
+      reminderFrequency: reminderFrequency || 'daily'
     });
 
     sendEmail({
@@ -612,7 +579,116 @@ const deleteReminder = async (req, res) => {
 };
 
 /* =========================
-   SEND REMINDER EMAIL
+   SMART REMINDER LOGIC
+   - Events within 7 days: ALWAYS daily reminders
+   - Events beyond 7 days: Follow user preference (daily/weekly)
+========================= */
+const shouldSendReminder = (event, today, todayStr) => {
+  const eventDate = new Date(event.date + "T00:00:00");
+  const daysUntil = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));
+  
+  // Always send daily reminders if event is within 7 days
+  if (daysUntil <= 7) {
+    return true;
+  }
+  
+  // Beyond 7 days, follow user preference
+  if (event.reminderFrequency === 'daily') {
+    return true;
+  }
+  
+  // Weekly reminders: send only on specific day of week (e.g., every Monday)
+  if (event.reminderFrequency === 'weekly') {
+    const dayOfWeek = today.getDay();
+    // Send weekly reminders on Mondays (1) - you can customize this
+    return dayOfWeek === 1 || !event.lastReminderSent || 
+           (new Date(event.lastReminderSent).getTime() + (7 * 24 * 60 * 60 * 1000)) <= today.getTime();
+  }
+  
+  return false;
+};
+
+/* =========================
+   DAILY REMINDER CRON JOB
+========================= */
+const sendDailyReminders = async () => {
+  console.log("⏰ Running reminder check...");
+
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+
+    const snapshot = await db.collection("events").get();
+    const batch = db.batch();
+    let emailsSent = 0;
+    let eventsDeleted = 0;
+
+    for (const doc of snapshot.docs) {
+      const event = doc.data();
+      const eventDate = new Date(event.date + "T00:00:00");
+
+      // Delete past events
+      if (event.date < todayStr) {
+        batch.delete(doc.ref);
+        eventsDeleted++;
+        console.log(`🗑️ Deleting past event: ${event.title}`);
+        continue;
+      }
+
+      // Send reminder based on smart logic
+      if (event.date >= todayStr) {
+        const daysUntil = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));
+        
+        // Check if we should send reminder today
+        if (shouldSendReminder(event, today, todayStr)) {
+          // Avoid sending duplicate reminders on the same day
+          if (event.lastReminderSent === todayStr) {
+            continue;
+          }
+          
+          const emailType = daysUntil === 0 ? 'today' : 'upcoming';
+          const subject = daysUntil === 0 
+            ? `🔔 TODAY: ${event.title}`
+            : `⏰ Reminder: ${event.title} - ${daysUntil} day${daysUntil > 1 ? 's' : ''} left`;
+
+          const htmlContent = createEmailHTML(emailType, {
+            title: event.title,
+            date: event.date,
+            daysUntil,
+            userName: event.userName || 'there',
+            type: event.type || 'event'
+          });
+
+          await sendEmail({
+            to: event.email,
+            subject,
+            html: htmlContent,
+          }).catch(err => console.error(`Email failed for ${event.email}:`, err));
+
+          batch.update(doc.ref, { lastReminderSent: todayStr });
+          emailsSent++;
+          
+          const reminderType = daysUntil <= 7 ? 'DAILY (Near event)' : event.reminderFrequency === 'daily' ? 'DAILY' : 'WEEKLY';
+          console.log(`📧 [${reminderType}] Sent reminder for: ${event.title} to ${event.email} (${daysUntil} days until)`);
+        }
+      }
+    }
+
+    if (emailsSent > 0 || eventsDeleted > 0) {
+      await batch.commit();
+    }
+
+    console.log(`✅ Reminder check complete. Emails sent: ${emailsSent}, Events deleted: ${eventsDeleted}`);
+    return { emailsSent, eventsDeleted };
+  } catch (error) {
+    console.error("❌ Error in reminder check:", error);
+    throw error;
+  }
+};
+
+/* =========================
+   SEND REMINDER EMAIL (Manual)
 ========================= */
 const sendReminderEmail = async (req, res) => {
   try {
@@ -652,90 +728,19 @@ const sendReminderEmail = async (req, res) => {
 };
 
 /* =========================
-   DAILY REMINDER CRON JOB
-========================= */
-const sendDailyReminders = async () => {
-  console.log("⏰ Running daily reminder check...");
-
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
-
-    const snapshot = await db.collection("events").get();
-    const batch = db.batch();
-    let emailsSent = 0;
-    let eventsDeleted = 0;
-
-    for (const doc of snapshot.docs) {
-      const event = doc.data();
-      const eventDate = new Date(event.date + "T00:00:00");
-
-      // Delete past events
-      if (event.date < todayStr) {
-        batch.delete(doc.ref);
-        eventsDeleted++;
-        console.log(`🗑️ Deleting past event: ${event.title}`);
-        continue;
-      }
-
-      // Send reminder for upcoming events
-      if (event.date >= todayStr) {
-        const daysUntil = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));
-        
-        if (!event.lastReminderSent || event.lastReminderSent !== todayStr) {
-          const emailType = daysUntil === 0 ? 'today' : 'upcoming';
-          const subject = daysUntil === 0 
-            ? `🔔 TODAY: ${event.title}`
-            : `⏰ Reminder: ${event.title} - ${daysUntil} day${daysUntil > 1 ? 's' : ''} left`;
-
-          const htmlContent = createEmailHTML(emailType, {
-            title: event.title,
-            date: event.date,
-            daysUntil,
-            userName: event.userName || 'there',
-            type: event.type || 'event'
-          });
-
-          await sendEmail({
-            to: event.email,
-            subject,
-            html: htmlContent,
-          }).catch(err => console.error(`Email failed for ${event.email}:`, err));
-
-          batch.update(doc.ref, { lastReminderSent: todayStr });
-          emailsSent++;
-          console.log(`📧 Sent reminder for: ${event.title} to ${event.email}`);
-        }
-      }
-    }
-
-    if (emailsSent > 0 || eventsDeleted > 0) {
-      await batch.commit();
-    }
-
-    console.log(`✅ Daily reminders complete. Emails sent: ${emailsSent}, Events deleted: ${eventsDeleted}`);
-    return { emailsSent, eventsDeleted };
-  } catch (error) {
-    console.error("❌ Error in daily reminders:", error);
-    throw error;
-  }
-};
-
-/* =========================
-   MANUAL TRIGGER FOR DAILY REMINDERS
+   MANUAL TRIGGER FOR REMINDERS
 ========================= */
 const triggerDailyReminders = async (req, res) => {
   try {
     const result = await sendDailyReminders();
     res.status(200).json({
-      message: "Daily reminders executed successfully",
+      message: "Reminders executed successfully",
       ...result,
     });
   } catch (error) {
-    console.error("❌ Error triggering daily reminders:", error);
+    console.error("❌ Error triggering reminders:", error);
     res.status(500).json({
-      message: "Failed to execute daily reminders",
+      message: "Failed to execute reminders",
       error: error.message,
     });
   }
