@@ -1,46 +1,26 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional
-from rag_pipeline import EnhancedRAGPipeline
+"""
+Entry point for running the RAG API server.
 
-app = FastAPI(title="RAG Answer API")
+Usage:
+    # Development
+    python main.py
+    
+    # Production with multiple workers
+    uvicorn api:app --host 0.0.0.0 --port 8000 --workers 4
+    
+    # With GPU and multiple workers
+    uvicorn api:app --host 0.0.0.0 --port 8000 --workers 4
+"""
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000",
-                   "http://localhost:5173",
-                   "http://localhost:5174",
-                   ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+import uvicorn
+from config import config
 
-rag = EnhancedRAGPipeline(auto_detect_model=True)
 
-class QueryRequest(BaseModel):
-    query: str
-    marks: Optional[int] = 5
-    temperature: Optional[float] = 0.3
-
-class AnswerResponse(BaseModel):
-    answer: str
-
-@app.post("/query", response_model=AnswerResponse)
-def query_rag(request: QueryRequest):
-    if not request.query.strip():
-        raise HTTPException(status_code=400, detail="Query cannot be empty")
-
-    try:
-        result = rag.query_rag(
-            user_query=request.query,
-            marks=request.marks,
-            temperature=request.temperature
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-    return AnswerResponse(
-        answer=result.get("answer", "No answer generated")
+if __name__ == "__main__":
+    uvicorn.run(
+        "api:app",
+        host=config.API_HOST,
+        port=config.API_PORT,
+        reload=False,  # Set to True for development
+        log_level=config.LOG_LEVEL.lower()
     )
