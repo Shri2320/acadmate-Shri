@@ -71,7 +71,7 @@ export default function Footer({ onSectionChange }) {
 
         <div className="border-t border-brown border-opacity-20 mt-12 pt-8 text-center">
           <p className="custom-brown opacity-60">
-            © 2025 AcadMate. All rights reserved. Built with ❤️ for students everywhere.
+            © 2025 AcadMate. All rights reserved. Built with for students everywhere.
           </p>
         </div>
       </div>
