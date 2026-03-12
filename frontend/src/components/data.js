@@ -1,6 +1,6 @@
 
 // A single sample PDF for demonstration purposes.
-const samplePdfUrl = 'https://drive.google.com/file/d/1MCHK2uif5hiptlESsN6Ta6XQvYY3tEuS/view?usp=sharing';
+export const samplePdfUrl = 'https://drive.google.com/file/d/1MCHK2uif5hiptlESsN6Ta6XQvYY3tEuS/view?usp=sharing';
 
 const maths = "https://drive.google.com/file/d/1ruJLBjN6-19EvNZd3k4rRSYXbTgq4UGD/view?usp=sharing"
 const p_physics = "https://drive.google.com/file/d/1_2tFteLzSj9xbP24dNluhrVpmheuHHBu/view?usp=sharing"
@@ -82,7 +82,8 @@ export const data = {
 
        { id: 'maths_2', name: 'Engineering Mathematics', icon: '📐',
         textbook: [ { id: 'maths_tb_1', title: 'Mathematics ', url:maths },],
-        notes: [], pyqs: [] },
+        notes: [],
+         pyqs: [] },
 
        { id: 'mechanics', name: 'Engineering Mechanics', icon: '🔧', 
       textbook: [{ id: 'mech_tb_1', title: 'Mechanics for Engineers', url: c_mechanics }], 
@@ -90,15 +91,25 @@ export const data = {
       pyqs: [] 
       },
 
-       { id: 'elec_eng', name: 'Elective3- Electronics Engineering', icon: '🔌', textbook: [], notes: [], pyqs: [] },
+       { id: 'elec_eng', name: 'Elective3- Electronics Engineering', icon: '🔌', 
+        textbook: [], 
+        notes: [], 
+        pyqs: [] },
+
        { id: 'egd', name: 'Engineering Graphics and Design', icon: '📏', 
         textbook: [{ id: 'cad_tb_1', title: 'Engineering drawing', url: c_cad }], 
         notes: [], 
         pyqs: [] },
 
-       { id: 'sustainability', name: 'Elective3- Sustainability/Skill', icon: '🌱', textbook: [], notes: [], pyqs: [] },
+       { id: 'sustainability', name: 'Elective3- Sustainability/Skill', icon: '🌱', 
+        textbook: [], 
+        notes: [], 
+        pyqs: [] },
 
-       { id: 'comm_eng', name: 'Communication English', icon: '📝', textbook: [], notes: [], pyqs: [] }
+       { id: 'comm_eng', name: 'Communication English', icon: '📝', 
+        textbook: [], 
+        notes: [], 
+        pyqs: [] }
     ]
   }
 };

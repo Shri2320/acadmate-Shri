@@ -1,5 +1,6 @@
 import React from 'react';
 import './Dashboard.css';
+import { samplePdfUrl } from './data';
 
 const Dashboard = ({ onNavigate }) => {
   const cycles = [
@@ -74,11 +75,13 @@ const Dashboard = ({ onNavigate }) => {
                       key={material.id}
                       className="material-card"
                       onClick={() =>
-                        onNavigate &&
-                        onNavigate('subjects', {
-                          cycle: cycle.id,
-                          type: material.id
-                        })
+                        material.id === 'syllabus'
+                          ? window.open(samplePdfUrl, '_blank', 'noopener,noreferrer')
+                          : onNavigate &&
+                            onNavigate('subjects', {
+                              cycle: cycle.id,
+                              type: material.id
+                            })
                       }
                     >
                       <div className="material-icon">{material.icon}</div>

@@ -35,16 +35,6 @@ const Subjects = ({ user, onLogout, cycle, type, onNavigate, onBack }) => {
               <button
                 key={subject.id}
                 onClick={() => {
-                   // --- FIX: PUSH STATE ON CLICK ---
-                   // Create a unique URL for this specific subject's PDF list
-                   // Format: #StudyMaterials/pdfList/<cycle>/<type>/<subjectId>
-                   const newHash = `#StudyMaterials/pdfList/${cycle}/${type}/${subject.id}`;
-                   window.history.pushState(
-                     { section: 'Study Materials' }, 
-                     '', 
-                     newHash
-                   );
-
                   onNavigate('pdfList', { 
                     cycle: cycle, 
                     type: type, 

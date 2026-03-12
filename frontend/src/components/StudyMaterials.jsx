@@ -67,10 +67,32 @@ const StudyMaterials = ({ user, onLogout }) => {
     };
   }, []);
 
-  // Standard Navigate Function (Updates internal state)
+  // Standard Navigate Function (Updates internal state + browser history)
   const navigateTo = (view, params = {}) => {
     setCurrentView(view);
     setCurrentParams(params);
+
+    // Build a stable hash for each internal view so Chrome back/forward works
+    let hash = '#StudyMaterials';
+
+    if (view === 'subjects') {
+      hash = `#StudyMaterials/subjects/${params.cycle}/${params.type}`;
+    } else if (view === 'pdfList') {
+      hash = `#StudyMaterials/pdfList/${params.cycle}/${params.type}/${params.subjectId}`;
+    } else if (view === 'pdfViewer') {
+      hash = `#StudyMaterials/pdfViewer/${params.cycle}/${params.type}/${params.subjectId}/${params.pdfId}`;
+    }
+
+    try {
+      // Keep top‑level section consistent for App.jsx popstate handler
+      window.history.pushState(
+        { section: 'Study Materials', view, params },
+        '',
+        hash
+      );
+    } catch (err) {
+      console.error('Failed to push history state for StudyMaterials:', err);
+    }
   };
 
   // Helper for internal back button (optional, if you use the arrow button in UI)
