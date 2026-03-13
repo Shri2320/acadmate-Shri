@@ -6,7 +6,7 @@ require("dotenv").config();
 let credential;
 
 try {
-  // Priority 1: BASE64 (Best for Hostinger/Production)
+  // Priority 1: BASE64 (Best for Hostinger/Production) 
   if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
     console.log("🔐 Loading Firebase credentials from BASE64 environment variable...");
     const base64String = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64.trim();
